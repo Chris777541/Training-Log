@@ -1,0 +1,67 @@
+CHRIS'S TRAINING LOG - iPhone app
+==================================
+
+This folder is a complete web app. Once it's on the web, you add it to your
+iPhone Home Screen and it opens full screen, with its own icon, and works
+offline at the gym. Your workouts are saved on the phone itself.
+
+You only have to do steps 1 and 2 once.
+
+
+1. PUT THE APP ON THE WEB (free, about 10 minutes, on a computer)
+-----------------------------------------------------------------
+Using GitHub Pages:
+
+  a. Go to github.com and create a free account (or sign in).
+  b. Click the "+" at the top right, then "New repository".
+     Name it:  training-log
+     Choose "Public" (required for free hosting; only the empty app is
+     public, never your workouts, which stay on your phone).
+     Click "Create repository".
+  c. On the next page, click the link "uploading an existing file".
+  d. Open this training-log folder on your computer, select EVERYTHING
+     inside it (index.html, sw.js, the img, thumb and vendor folders, etc.)
+     and drag it all onto the GitHub page. Wait for the upload to finish,
+     then click "Commit changes".
+  e. Click "Settings" (top of the repository), then "Pages" on the left.
+     Under "Branch", choose "main" and "/ (root)", then click "Save".
+  f. Wait a minute or two, then refresh that page. It shows your web
+     address, which looks like:
+         https://YOUR-USERNAME.github.io/training-log/
+
+
+2. ADD IT TO YOUR iPHONE
+------------------------
+  a. On the iPhone, open SAFARI (not the Claude app) and type in your
+     web address from step 1f.
+  b. Tap Safari's Share button (the square with the arrow; on iOS 26 tap
+     the "..." button first, then Share).
+  c. Scroll down and tap "Add to Home Screen". Leave "Open as Web App" on.
+     Tap "Add".
+  d. Open "Training Log" from your Home Screen once while you have signal,
+     so the whole exercise library is saved for offline use.
+
+
+3. MOVE YOUR EXISTING WORKOUTS INTO THE APP
+-------------------------------------------
+  a. Open your training log in Claude, go to Progress, and tap
+     "Back up everything". Save the file to Files / iCloud Drive.
+  b. In the iPhone app, go to Progress, tap "Restore from backup",
+     choose that file, then tap "Restore now".
+
+
+KEEP A BACKUP
+-------------
+The app keeps your log on this phone only. Every few weeks, tap
+Progress > Back up everything and save the file to iCloud Drive, so you
+can restore it if you change or reset your phone.
+
+
+UPDATING THE APP LATER
+----------------------
+If you get a new version of this folder, upload the new files to the same
+GitHub repository (they replace the old ones). The app updates itself the
+next time you open it with signal. Your workouts are not affected.
+
+
+Photos and exercise instructions: Free Exercise DB (public domain).
