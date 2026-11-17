@@ -204,6 +204,7 @@ nav.tabs{grid-template-columns:repeat(4,1fr)}
 .inl select{width:auto;padding:7px 8px}
 .lastline{font-size:.8rem;color:var(--muted)}
 .coach{margin-top:0}
+.wunote{font-size:.84rem;padding:8px 12px;border-radius:10px;background:var(--sunk);color:var(--muted)}.wunote b{font-family:var(--display);text-transform:uppercase;letter-spacing:.05em;color:var(--p-core);margin-right:6px}
 .wu{border:1px solid color-mix(in srgb,var(--p-core) 35%,var(--line));border-radius:10px;overflow:hidden}
 .wutoggle{width:100%;display:flex;justify-content:space-between;align-items:center;border:0;border-radius:0;background:color-mix(in srgb,var(--p-core) 12%,var(--surface));padding:9px 12px;font-weight:500}
 .wutoggle b{font-family:var(--display);text-transform:uppercase;letter-spacing:.05em;color:var(--p-core);margin-right:6px}
@@ -726,6 +727,9 @@ function lastBox(e,last){
     rec=`<b>${c.w?fmtW(c.w)+" "+unit():"Body weight"} × ${same?c.reps[0]:c.reps.join(", ")} reps</b>${same&&c.reps.length>1?` · ${c.reps.length} sets`:""} ${d>0?`<span class="up">▲ +${fmtW(d)} ${unit()}</span>`:d<0?`<span class="down">▼ ${fmtW(d)} ${unit()}</span>`:`<span class="same">same weight, more reps</span>`}`}}
   return `<div class="lastbox"><span class="lbl">Last time · ${esc(when)}</span><span>${main}</span>${e.type!=="Cardio"?`<small>${esc(setsText(last))}</small>`:""}${rec?`<div class="recline"><span class="lbl">Recommended today</span><span>${rec}</span></div>`:""}</div>`;
 }
+function partWords(e){const p=e.part||partOf(e.exercise);return ({"Hamstrings & glutes":"hamstrings and glutes","Full body":"body","Core":"core"})[p]||p.toLowerCase()}
+function firstOfPart(e){if(e.type==="Cardio"||isTimed(e))return null;const pt=e.part||partOf(e.exercise);
+  const list=st.log.filter(x=>x.date===e.date&&x.type!=="Cardio"&&!isTimed(x)&&(x.part||partOf(x.exercise))===pt).sort((a,b)=>exRank(a)-exRank(b)||(a.ts||0)-(b.ts||0));return list[0]||null}
 function card(e){
   const isC=e.type==="Cardio",timed=isTimed(e);const last=lastFor(e.exercise,e);const locked=!!e.done;
   const chk=`<label class="donechk"><input type="checkbox" data-done="1"${locked?" checked":""}> Complete</label>`;
@@ -743,8 +747,10 @@ function card(e){
     const c=coach(e);const ui=uiOf(e,c);const sets=e.setList||[];
     const tgt=`${lastBox(e,last)}<div class="spread"><label class="inl">${timed?"Time goal":"Rep goal"}<select data-tgt="1">${opts(timed?TIME_TARGETS:TARGETS,e.target)}</select></label></div>`;
     const cb=c?`<div class="coach${c.up?" up":c.down?" down":""}"><b>${c.up?"Level up":c.down?"Reset":c.first?"Getting started":"Today's goal"}</b> ${esc(c.msg)}</div>`:"";
-    let wuHTML="";
-    if(!timed){
+    let wuHTML="";const firstOf=firstOfPart(e);
+    if(!timed&&firstOf&&firstOf!==e&&!(e.warmups||[]).length){
+      wuHTML=`<div class="wunote"><b>Warm-up</b> Not needed. Your ${esc(partWords(e))} ${/s$/.test(partWords(e))&&!/biceps|triceps/.test(partWords(e))?"are":"is"} already warm from ${esc(firstOf.exercise)}.</div>`;
+    }else if(!timed){
       const saved=(e.warmups||[]).length>0;const W=workW(e,ui);let rows=null,msg="";
       if(saved)rows=e.warmups.map(s=>({w:r2(conv(s.w,e.unit)),r:s.r,done:!!s.done}));
       else if(W===null)msg="Enter the weight for your first working set below, and your warm-up sets will appear here.";
