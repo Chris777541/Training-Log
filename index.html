@@ -266,6 +266,15 @@ nav.tabs{grid-template-columns:repeat(4,1fr)}
 .filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
 .filebtn:focus-within{outline:2px solid var(--accent);outline-offset:2px}
 .toggle{display:flex;gap:10px;align-items:flex-start;font-size:.95rem;font-weight:500;color:var(--fg)}.toggle input{width:22px;height:22px;flex:none;margin-top:1px;accent-color:var(--good)}
+.pvtabs{flex-wrap:wrap}.pvnote{margin:0;font-size:.82rem}
+.pvwrap{overflow:auto;max-height:55vh;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.pvtable{border-collapse:separate;border-spacing:0;font-size:.8rem;font-variant-numeric:tabular-nums;width:max-content;min-width:100%}
+.pvtable th,.pvtable td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:5px 8px;white-space:nowrap;text-align:left;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+.pvtable thead th{position:sticky;top:0;background:var(--sunk);font-size:.7rem;text-transform:none;letter-spacing:0;color:var(--fg);font-weight:700;z-index:1}
+.pvtable tfoot td{background:var(--sunk);font-weight:700}
+.pvtable .n{text-align:right}.pvtable .rn{color:var(--muted);text-align:right;background:var(--sunk);font-size:.7rem;position:sticky;left:0}
+.pvtable tbody tr:nth-child(even) td:not(.rn){background:color-mix(in srgb,var(--sunk) 45%,var(--surface))}
+.pvact{gap:8px}
 .seg{display:flex;gap:4px}.seg .chip[aria-pressed="true"]{background:var(--p-core);border-color:var(--p-core);color:#fff}
 .fateq{display:grid;gap:6px}.fateq div{display:grid;grid-template-columns:80px 1fr;gap:8px;font-size:.86rem;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--p-core) 10%,var(--surface))}
 .fateq b{font-family:var(--display);text-transform:uppercase;letter-spacing:.04em;color:var(--p-core)}
@@ -373,7 +382,7 @@ nav.tabs{grid-template-columns:repeat(4,1fr)}
       <div><div class="eyebrow">Save a copy</div><h2>Download your log</h2></div>
       <p class="muted" style="margin:0;font-size:.85rem">The PDF is a printable table with a summary of each workout and every set. The spreadsheet has one row per set and opens in Excel, Numbers or Google Sheets.</p>
       <label>Period<select id="xRange"><option value="week">This week</option><option value="4w" selected>Last 4 weeks</option><option value="12w">Last 12 weeks</option><option value="all">All time</option></select></label>
-      <div class="row"><button class="primary" id="xPdf">Download PDF</button><button id="xCsv">Download spreadsheet (.csv)</button></div>
+      <div class="row"><button id="xPrev">Preview</button><button class="primary" id="xPdf">Download PDF</button><button id="xCsv">Download spreadsheet (.csv)</button></div>
       <div class="backup"><div><b>Backup</b><span class="muted">Everything in one file: workouts, profile and your own exercises. Your log lives only on this phone, so back up now and then and keep the file in iCloud Drive or Files.</span></div>
         <div class="row"><button id="xBackup">Back up everything</button><label class="filebtn">Restore from backup<input type="file" id="xFile" accept=".json,application/json"></label><button class="primary" id="xRestore" hidden>Restore now</button></div></div>
       <div class="status" id="xStatus"></div>
@@ -1144,6 +1153,58 @@ async function saveFile(filename,data){
   try{await dl.save({filename,data});setStatus("xStatus","Saved "+filename)}
   catch(err){const c=err&&err.code;setStatus("xStatus",c==="declined"?"Download cancelled.":c==="rate_limited"?"A download is already waiting for you to confirm.":"Couldn't save the file. Try again.",c!=="declined")}
 }
+function pdfData(R){
+  const u=unit();const dates=[...new Set(R.items.map(e=>e.date))];
+  const dayRows=dates.map(d=>{const ex=R.items.filter(e=>e.date===d);const D=st.days[d];const c=D&&D.closed?dayCalc(d,D.minutes):null;
+    return[longD(d)+", "+parse(d).getFullYear(),c?c.minutes:"",ex.length,ex.reduce((a,e)=>a+mainSets(e).length,0),fmtW(ex.reduce((a,e)=>a+vol(e),0)),c&&c.kcal!==null?c.kcal.toLocaleString():"",c&&c.net!==null?fmtFat(c.net/(u==="kg"?KCAL_KG:KCAL_LB)):""]});
+  const totK=dates.reduce((a,d)=>{const D=st.days[d];const c=D&&D.closed?dayCalc(d,D.minutes):null;return a+(c&&c.kcal?c.kcal:0)},0);
+  const sumHead=["Date","Minutes","Exercises","Working sets",`Volume (${u})`,"Calories",`Fat equiv. (${u})`];
+  const sumFoot=["Total",dayRows.reduce((a,r)=>a+(Number(r[1])||0),0)||"",R.items.length,dayRows.reduce((a,r)=>a+r[3],0),fmtW(R.items.reduce((a,e)=>a+vol(e),0)),totK?totK.toLocaleString():"",""];
+  const rows=R.items.map(e=>{
+    if(e.type==="Cardio")return[longD(e.date),e.exercise,e.part||partOf(e.exercise),"",`${e.minutes||0} min${e.distance?` · ${e.distance} km`:""}`,"","",exKcal(e)!==null?exKcal(e):"",e.notes||""];
+    const wu=(e.warmups||[]).filter(w=>w.done).map(w=>wTxt(w.w,e)+"x"+w.r).join(", ");
+    const sets=(e.setList||[]).map(s=>(s.drop?"drop ":"")+(isTimed(e)?s.r+"s":wTxt(s.w,e)+"x"+s.r)).join(", ");
+    const ss=setsOf(e);const top=ss.length?ss.reduce((a,s)=>s.w>a.w||(s.w===a.w&&s.r>a.r)?s:a,ss[0]):null;
+    return[longD(e.date),e.exercise,e.part||partOf(e.exercise),wu,sets,isTimed(e)?"":top?(top.w?fmtW(top.w):"BW")+" x "+top.r:"",fmtW(vol(e)),exKcal(e)!==null?exKcal(e):"",e.notes||""]});
+  const detHead=["Date","Exercise","Body part","Warm-up","Working sets (weight x reps)","Top set","Volume","Cal.","Notes"];
+  return{dayRows,sumHead,sumFoot,rows,detHead};
+}
+function csvRows(R){
+  const u=unit();
+  const out=[["Date","Exercise","Body part","Set type","Set #",`Weight (${u})`,"Reps or seconds","Minutes","Distance (km)","Rep goal","Notes"]];
+  for(const e of R.items){
+    if(e.type==="Cardio"){out.push([e.date,e.exercise,e.part||partOf(e.exercise),"Cardio","","","",e.minutes||0,e.distance||"","",e.notes||""]);continue}
+    (e.warmups||[]).filter(w=>w.done).forEach((w,k)=>out.push([e.date,e.exercise,e.part||partOf(e.exercise),"Warm-up",k+1,r2(conv(w.w,e.unit)),w.r,"","",e.target||"",""]));
+    let n=0;(e.setList||[]).forEach(s=>{if(!s.drop)n++;out.push([e.date,e.exercise,e.part||partOf(e.exercise),s.drop?"Drop set":"Working",s.drop?"":n,isTimed(e)?"":r2(conv(s.w,e.unit)),s.r,"","",e.target||"",""])});
+    if(e.notes)out[out.length-1][10]=e.notes;
+  }
+  return out;
+}
+/* ---------- preview ---------- */
+st.pvTab="summary";
+function openPreview(){
+  const R=exportRange();lastFocus=document.activeElement;
+  $("shTitle").textContent="Preview";$("shAka").textContent=`${R.label}: ${longD(R.start)} to ${longD(R.end)}`;$("shPills").innerHTML=`<span class="pill">Before you download</span>`;
+  renderPreview(R);$("sheet").hidden=false;document.body.style.overflow="hidden";$("shBody").scrollTop=0;$("shClose").focus();
+}
+function pvTable(head,rows,foot,numCols){
+  const td=(v,i,tag)=>`<${tag}${numCols.includes(i)?' class="n"':""}>${esc(v)}</${tag}>`;
+  return `<div class="pvwrap"><table class="pvtable"><thead><tr><th class="rn"></th>${head.map((h,i)=>td(h,i,"th")).join("")}</tr></thead><tbody>${rows.map((r,k)=>`<tr><td class="rn">${k+1}</td>${r.map((v,i)=>td(v,i,"td")).join("")}</tr>`).join("")}</tbody>${foot?`<tfoot><tr><td class="rn"></td>${foot.map((v,i)=>td(v,i,"td")).join("")}</tr></tfoot>`:""}</table></div>`;
+}
+function renderPreview(R){
+  R=R||exportRange();let body;
+  if(!R.items.length)body=`<div class="empty">No finished exercises in this period yet, so the files would be empty.</div>`;
+  else if(st.pvTab==="csv"){const out=csvRows(R);body=`<p class="muted pvnote">One row per set: ${out.length-1} rows. This is what opens in Excel, Numbers or Google Sheets.</p>`+pvTable(out[0],out.slice(1),null,[4,5,6,7,8])}
+  else{const P=pdfData(R);body=st.pvTab==="summary"?`<p class="muted pvnote">PDF page 1: one row per workout day, with totals.</p>`+pvTable(P.sumHead,P.dayRows,P.sumFoot,[1,2,3,4,5,6])
+    :`<p class="muted pvnote">PDF page 2 onward: every exercise, with warm-ups, working sets and drop sets.</p>`+pvTable(P.detHead,P.rows,null,[6,7])}
+  const tab=(k,l)=>`<button class="chip" data-pv="${k}" aria-pressed="${st.pvTab===k}">${l}</button>`;
+  $("shBody").innerHTML=`<div class="seg pvtabs" role="group" aria-label="Which file">${tab("summary","PDF: summary")}${tab("details","PDF: details")}${tab("csv","Spreadsheet (.csv)")}</div>${body}
+    <div class="shact pvact"><button class="primary" data-pvdl="pdf">Download PDF</button><button data-pvdl="csv">Download spreadsheet</button></div>`;
+}
+$("shBody").addEventListener("click",async ev=>{
+  const t=ev.target.closest("[data-pv]");if(t){st.pvTab=t.dataset.pv;renderPreview();return}
+  const d=ev.target.closest("[data-pvdl]");if(d){closeDetail();if(d.dataset.pvdl==="pdf")$("xPdf").click();else $("xCsv").click()}
+});
 async function makePDF(){
   const R=exportRange();if(!R.items.length){setStatus("xStatus","No finished exercises in that period yet.",true);return}
   setStatus("xStatus","Building your PDF…");
@@ -1153,23 +1214,15 @@ async function makePDF(){
   const W=doc.internal.pageSize.getWidth();
   doc.setFillColor(31,63,168);doc.rect(0,0,W,64,"F");doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(20);doc.text(pdfTxt("Chris's Training Log"),36,40);
   doc.setFont("helvetica","normal");doc.setFontSize(10);doc.text(pdfTxt(`${R.label}: ${longD(R.start)}, ${parse(R.start).getFullYear()} to ${longD(R.end)}, ${parse(R.end).getFullYear()}`),W-36,40,{align:"right"});
-  const dates=[...new Set(R.items.map(e=>e.date))];
-  const dayRows=dates.map(d=>{const ex=R.items.filter(e=>e.date===d);const D=st.days[d];const c=D&&D.closed?dayCalc(d,D.minutes):null;
-    return[longD(d)+", "+parse(d).getFullYear(),c?c.minutes:"",ex.length,ex.reduce((a,e)=>a+mainSets(e).length,0),fmtW(ex.reduce((a,e)=>a+vol(e),0)),c&&c.kcal!==null?c.kcal.toLocaleString():"",c&&c.net!==null?fmtFat(c.net/(u==="kg"?KCAL_KG:KCAL_LB)):""]});
-  const totK=dates.reduce((a,d)=>{const D=st.days[d];const c=D&&D.closed?dayCalc(d,D.minutes):null;return a+(c&&c.kcal?c.kcal:0)},0);
+  const P=pdfData(R);const dayRows=P.dayRows;
   doc.setTextColor(24,32,43);doc.setFont("helvetica","bold");doc.setFontSize(13);doc.text("Workout summary",36,92);
-  doc.autoTable({startY:100,head:[["Date","Minutes","Exercises","Working sets",`Volume (${u})`,"Calories","Fat equiv. ("+u+")"]],body:dayRows.map(r=>r.map(pdfTxt)),
-    foot:[["Total",dayRows.reduce((a,r)=>a+(Number(r[1])||0),0)||"",R.items.length,dayRows.reduce((a,r)=>a+r[3],0),fmtW(R.items.reduce((a,e)=>a+vol(e),0)),totK?totK.toLocaleString():"",""]],
+  doc.autoTable({startY:100,head:[P.sumHead],body:dayRows.map(r=>r.map(pdfTxt)),
+    foot:[P.sumFoot.map(pdfTxt)],
     styles:{fontSize:9,cellPadding:4},headStyles:{fillColor:[31,63,168]},footStyles:{fillColor:[232,236,240],textColor:[24,32,43]},alternateRowStyles:{fillColor:[245,247,250]},margin:{left:36,right:36}});
-  const rows=R.items.map(e=>{
-    if(e.type==="Cardio")return[longD(e.date),e.exercise,e.part||partOf(e.exercise),"",`${e.minutes||0} min${e.distance?` · ${e.distance} km`:""}`,"","",exKcal(e)!==null?exKcal(e):"",e.notes||""];
-    const ms=mainSets(e);const wu=(e.warmups||[]).filter(w=>w.done).map(w=>wTxt(w.w,e)+"x"+w.r).join(", ");
-    const sets=(e.setList||[]).map(s=>(s.drop?"drop ":"")+(isTimed(e)?s.r+"s":wTxt(s.w,e)+"x"+s.r)).join(", ");
-    const ss=setsOf(e);const top=ss.length?ss.reduce((a,s)=>s.w>a.w||(s.w===a.w&&s.r>a.r)?s:a,ss[0]):null;
-    return[longD(e.date),e.exercise,e.part||partOf(e.exercise),wu,sets,isTimed(e)?"":top?(top.w?fmtW(top.w):"BW")+" x "+top.r:"",fmtW(vol(e)),exKcal(e)!==null?exKcal(e):"",e.notes||""]});
+  const rows=P.rows;
   doc.addPage();doc.setFont("helvetica","bold");doc.setFontSize(13);doc.text("Exercise details",36,40);
   doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(93,104,119);doc.text(pdfTxt(`Weights in ${u}. "drop" marks a drop set. BW = body weight. Calories are estimates.`),36,54);
-  doc.autoTable({startY:62,head:[["Date","Exercise","Body part","Warm-up","Working sets (weight x reps)","Top set","Volume","Cal.","Notes"]],body:rows.map(r=>r.map(pdfTxt)),
+  doc.autoTable({startY:62,head:[P.detHead],body:rows.map(r=>r.map(pdfTxt)),
     styles:{fontSize:8.5,cellPadding:4,overflow:"linebreak"},headStyles:{fillColor:[91,47,194]},alternateRowStyles:{fillColor:[245,247,250]},
     columnStyles:{0:{cellWidth:70},1:{cellWidth:110},2:{cellWidth:70},3:{cellWidth:100},4:{cellWidth:170},5:{cellWidth:55},6:{cellWidth:50,halign:"right"},7:{cellWidth:36,halign:"right"}},margin:{left:36,right:36}});
   const n=doc.internal.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);doc.setFontSize(8);doc.setTextColor(120,130,140);doc.text(`Page ${i} of ${n}`,W-36,doc.internal.pageSize.getHeight()-18,{align:"right"});doc.text(pdfTxt("Made with Chris's Training Log"),36,doc.internal.pageSize.getHeight()-18)}
@@ -1177,16 +1230,10 @@ async function makePDF(){
 }
 async function makeCSV(){
   const R=exportRange();if(!R.items.length){setStatus("xStatus","No finished exercises in that period yet.",true);return}
-  const u=unit();const q=v=>{v=String(v??"");return /[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v};
-  const out=[["Date","Exercise","Body part","Set type","Set #",`Weight (${u})`,"Reps or seconds","Minutes","Distance (km)","Rep goal","Notes"]];
-  for(const e of R.items){
-    if(e.type==="Cardio"){out.push([e.date,e.exercise,e.part||partOf(e.exercise),"Cardio","","","",e.minutes||0,e.distance||"","",e.notes||""]);continue}
-    (e.warmups||[]).filter(w=>w.done).forEach((w,k)=>out.push([e.date,e.exercise,e.part||partOf(e.exercise),"Warm-up",k+1,r2(conv(w.w,e.unit)),w.r,"","",e.target||"",""]));
-    let n=0;(e.setList||[]).forEach(s=>{if(!s.drop)n++;out.push([e.date,e.exercise,e.part||partOf(e.exercise),s.drop?"Drop set":"Working",s.drop?"":n,isTimed(e)?"":r2(conv(s.w,e.unit)),s.r,"","",e.target||"",""])});
-    if(e.notes)out[out.length-1][10]=e.notes;
-  }
+  const q=v=>{v=String(v??"");return /[",\n]/.test(v)?`"${v.replace(/"/g,'""')}"`:v};const out=csvRows(R);
   await saveFile(`training-log-${R.end}.csv`,"﻿"+out.map(r=>r.map(q).join(",")).join("\r\n"));
 }
+$("xPrev").onclick=openPreview;
 $("xPdf").onclick=async()=>{$("xPdf").disabled=true;try{await makePDF()}finally{$("xPdf").disabled=false}};
 $("xCsv").onclick=async()=>{$("xCsv").disabled=true;try{await makeCSV()}finally{$("xCsv").disabled=false}};
 /* ---------- BACKUP and RESTORE ---------- */
