@@ -326,6 +326,43 @@ nav.tabs{grid-template-columns:repeat(4,1fr)}
 .steps{margin:0;padding-left:1.3em;display:grid;gap:8px}.steps li{line-height:1.5}
 .shact{position:sticky;bottom:-20px;background:var(--surface);padding-block:8px;display:flex}.shact button{flex:1}
 @media (max-width:400px){.nextrow{grid-template-columns:26px 1.2fr .9fr auto}.nextrow button{padding:9px 9px}}
+/* ---- flashy colour pass + cross ---- */
+:root{--g-log:linear-gradient(120deg,#2B5BFF,#7B2FF7 60%,#E3349A);--g-prog:linear-gradient(120deg,#FF7A18,#FF3D77);--g-lib:linear-gradient(120deg,#00B37E,#00A3E0);--g-prof:linear-gradient(120deg,#C2185B,#7B1FA2);
+  --g-lift:linear-gradient(115deg,#2B5BFF 0%,#7B2FF7 55%,#E3349A 100%);--g-cardio:linear-gradient(115deg,#0097A7 0%,#00B37E 60%,#7CC600 100%);--g-btn:linear-gradient(115deg,#2B5BFF,#7B2FF7);
+  --glow-a:rgba(123,47,247,.10);--glow-b:rgba(255,61,119,.09);--glow-c:rgba(0,179,126,.09);--gold1:#FFE7A3;--gold2:#F2B705;--gold3:#C98A00}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--glow-a:rgba(123,47,247,.22);--glow-b:rgba(255,61,119,.16);--glow-c:rgba(0,179,126,.14)}}
+:root[data-theme="dark"]{--glow-a:rgba(123,47,247,.22);--glow-b:rgba(255,61,119,.16);--glow-c:rgba(0,179,126,.14)}
+body{background:radial-gradient(900px 500px at 0% 0%,var(--glow-a),transparent 60%),radial-gradient(800px 500px at 100% 20%,var(--glow-b),transparent 60%),radial-gradient(900px 600px at 50% 100%,var(--glow-c),transparent 60%),var(--bg);background-attachment:fixed}
+header.top{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;background:var(--g-log);background-size:200% 200%;animation:hdr 14s ease-in-out infinite;box-shadow:0 10px 30px rgba(123,47,247,.30)}
+@keyframes hdr{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+header.top::after{background:linear-gradient(90deg,#FF3B3B 0 20%,#2B5BFF 20% 40%,#FFC400 40% 60%,#00C853 60% 80%,#FFFFFF 80% 100%)}
+.cross{width:40px;height:56px;flex:none;filter:drop-shadow(0 0 6px rgba(255,214,102,.75)) drop-shadow(0 2px 2px rgba(0,0,0,.25))}
+@media (max-width:420px){.cross{width:32px;height:45px}header.top h1{font-size:1.9rem}}
+nav.tabs a{transition:transform .15s ease,box-shadow .15s ease}
+nav.tabs a[data-v="log"]{color:#4A3FE0}nav.tabs a[data-v="progress"]{color:#E8590C}nav.tabs a[data-v="library"]{color:#0A9B72}nav.tabs a[data-v="profile"]{color:#B0186E}
+nav.tabs a[aria-current="page"]{color:#fff;box-shadow:0 6px 16px rgba(0,0,0,.18)}
+nav.tabs a[data-v="log"][aria-current="page"]{background:var(--g-log)}nav.tabs a[data-v="progress"][aria-current="page"]{background:var(--g-prog)}
+nav.tabs a[data-v="library"][aria-current="page"]{background:var(--g-lib)}nav.tabs a[data-v="profile"][aria-current="page"]{background:var(--g-prof)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) nav.tabs a[aria-current="false"]{filter:brightness(1.5)}}
+:root[data-theme="dark"] nav.tabs a[aria-current="false"]{filter:brightness(1.5)}
+.panel{box-shadow:inset 0 4px 0 var(--pc,#7B2FF7),0 6px 18px rgba(30,30,80,.06);border-top-color:transparent}
+#v-log .panel{--pc:#7B2FF7}#v-progress .panel{--pc:#FF5A3C}#v-library .panel{--pc:#00B37E}#v-profile .panel{--pc:#C2185B}
+#v-progress .panel:nth-of-type(3n+2){--pc:#FFB000}#v-progress .panel:nth-of-type(3n){--pc:#2B5BFF}
+#v-log .eyebrow{color:#7B2FF7}#v-progress .eyebrow{color:#E8590C}#v-library .eyebrow{color:#0A9B72}#v-profile .eyebrow{color:#B0186E}
+header.top .eyebrow{color:rgba(255,255,255,.85)!important}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) #v-log .eyebrow{color:#B794FF}:root:not([data-theme="light"]) #v-progress .eyebrow{color:#FF9F68}:root:not([data-theme="light"]) #v-library .eyebrow{color:#4FE0B0}:root:not([data-theme="light"]) #v-profile .eyebrow{color:#FF7AB8}}
+:root[data-theme="dark"] #v-log .eyebrow{color:#B794FF}:root[data-theme="dark"] #v-progress .eyebrow{color:#FF9F68}:root[data-theme="dark"] #v-library .eyebrow{color:#4FE0B0}:root[data-theme="dark"] #v-profile .eyebrow{color:#FF7AB8}
+button.primary{background:var(--g-btn);box-shadow:0 4px 14px rgba(123,47,247,.35);transition:transform .12s ease,box-shadow .12s ease}
+button.primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(123,47,247,.45)}
+#v-progress button.primary{background:var(--g-prog);box-shadow:0 4px 14px rgba(255,61,119,.35)}
+#v-library button.primary{background:var(--g-lib);box-shadow:0 4px 14px rgba(0,163,224,.35)}
+#v-profile button.primary{background:var(--g-prof);box-shadow:0 4px 14px rgba(194,24,91,.35)}
+.day{box-shadow:0 8px 22px rgba(60,40,160,.12)}
+.done-hero{background:linear-gradient(135deg,color-mix(in srgb,#FFB000 18%,var(--surface)),color-mix(in srgb,#FF3D77 14%,var(--surface)));border-radius:12px;padding:14px}
+.kcal b{background:linear-gradient(90deg,#FF7A18,#FF3D77);-webkit-background-clip:text;background-clip:text;color:transparent}
+.excard{transition:transform .12s ease,box-shadow .12s ease}.excard:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(0,163,224,.18)}
+.sheet-head{background:var(--g-log)}
+@media (prefers-reduced-motion:reduce){header.top{animation:none}button.primary:hover,.excard:hover{transform:none}}
 </style>
 </head>
 <body>
@@ -333,7 +370,8 @@ nav.tabs{grid-template-columns:repeat(4,1fr)}
 
 <div class="wrap">
   <header class="top">
-    <div>
+    <svg class="cross" viewBox="0 0 40 56" role="img" aria-label="Cross"><defs><linearGradient id="xg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FFF6D6"/><stop offset=".45" stop-color="#FFD54A"/><stop offset="1" stop-color="#E0A100"/></linearGradient></defs><path d="M16 1h8v14h14v8H24v32h-8V23H2v-8h14z" fill="url(#xg)" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round"/></svg>
+    <div style="min-width:0">
       <div class="eyebrow">Training report</div>
       <h1>Chris's Training Log</h1>
     </div>
