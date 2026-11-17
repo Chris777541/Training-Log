@@ -276,6 +276,7 @@ nav.tabs{grid-template-columns:repeat(4,1fr)}
 .pvtable .n{text-align:right}.pvtable .rn{color:var(--muted);text-align:right;background:var(--sunk);font-size:.7rem;position:sticky;left:0}
 .pvtable tbody tr:nth-child(even) td:not(.rn){background:color-mix(in srgb,var(--sunk) 45%,var(--surface))}
 .pvact{gap:8px}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);font:inherit;font-weight:600;text-decoration:underline;cursor:pointer}
 .seg{display:flex;gap:4px}.seg .chip[aria-pressed="true"]{background:var(--p-core);border-color:var(--p-core);color:#fff}
 .fateq{display:grid;gap:6px}.fateq div{display:grid;grid-template-columns:80px 1fr;gap:8px;font-size:.86rem;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--p-core) 10%,var(--surface))}
 .fateq b{font-family:var(--display);text-transform:uppercase;letter-spacing:.04em;color:var(--p-core)}
@@ -619,7 +620,7 @@ function summary(e){if(e.type==="Cardio")return `${e.minutes||0} min${e.distance
 
 /* ---------- per-exercise working state ---------- */
 function normalizeUnit(e){if(e.type==="Cardio"||!e.unit||e.unit===unit())return;const f=x=>r2(conv(x,e.unit));
-  e.setList=(e.setList||[]).map(s=>s.drop?{w:f(s.w),r:s.r,drop:true}:{w:f(s.w),r:s.r});e.warmups=(e.warmups||[]).map(s=>({w:f(s.w),r:s.r,done:!!s.done}));e.unit=unit()}
+  e.setList=(e.setList||[]).map(s=>Object.assign({},s,{w:f(s.w)}));e.warmups=(e.warmups||[]).map(s=>Object.assign({},s,{w:f(s.w),done:!!s.done}));e.unit=unit()}
 function finalize(e){if(e.type==="Cardio")return;const all=e.setList||[];const ms=all.filter(x=>!x.drop);const s=ms.length?ms:all;e.sets=ms.length;let top=null;for(const x of s)if(!top||x.w>top.w||(x.w===top.w&&x.r>top.r))top=x;e.weight=top?top.w:0;e.reps=top?top.r:0;e.unit=e.unit||unit()}
 function defaultNext(e,c){
   const s=e.setList||[];const k=s.length;
@@ -794,7 +795,7 @@ $("dayBox").addEventListener("click",async ev=>{
     const wi=row.querySelector('input[data-nx="w"]');const w=isTimed(e)?0:(wi?wi.value:"");const r=Number(row.querySelector('select[data-nx="r"]').value)||0;
     if(!isTimed(e)&&(w===""||isNaN(Number(w))||Number(w)<0)){toast("Enter a weight first (0 for body weight).",true);return}
     const drop=!!u.drop&&(e.setList||[]).length>0;
-    normalizeUnit(e);const set={w:Number(w),r};if(drop)set.drop=true;e.setList=(e.setList||[]).concat([set]);finalize(e);
+    normalizeUnit(e);const set={w:Number(w),r,t:Date.now()};if(drop)set.drop=true;e.setList=(e.setList||[]).concat([set]);finalize(e);
     u.next=null;u.wuOpen=false;st.confirm=null;
     if(drop){u.next={w:Number(w)?roundW(Number(w)*0.8):0,r}}
     renderAll();persist(id);toast(drop?`${e.exercise}: drop set logged`:`${e.exercise}: set ${mainSets(e).length} logged`);return}
@@ -820,9 +821,9 @@ $("dayBox").addEventListener("change",ev=>{
   if(el.dataset.tgt){e.target=el.value;if(st.ui[id])st.ui[id].next=null;renderDay();persist(id);return}
   if(el.dataset.s){const k=Number(el.closest(".setrow").dataset.k);normalizeUnit(e);const s=e.setList[k];if(!s)return;const v=el.value===""?0:Number(el.value);if(isNaN(v)||v<0){renderDay();return}s[el.dataset.s]=v;finalize(e);if(st.ui[id])st.ui[id].next=null;renderAll();persist(id);return}
   if(el.dataset.wu){const k=Number(el.closest(".wurow").dataset.k);materialize(e);const s=e.warmups[k];if(!s)return;
-    if(el.dataset.wu==="done")s.done=el.checked;else{const v=el.value===""?0:Number(el.value);if(!isNaN(v)&&v>=0)s[el.dataset.wu]=v}renderDay();persist(id);
+    if(el.dataset.wu==="done"){s.done=el.checked;if(el.checked)s.t=Date.now();else delete s.t}else{const v=el.value===""?0:Number(el.value);if(!isNaN(v)&&v>=0)s[el.dataset.wu]=v}renderDay();persist(id);
     if(el.dataset.wu==="done"&&el.checked&&e.warmups.every(w=>w.done))toast("Warm-up done. Time for working sets.");return}
-  if(el.dataset.c){e[el.dataset.c]=Number(el.value)||0;renderAll();persist(id);return}
+  if(el.dataset.c){e[el.dataset.c]=Number(el.value)||0;if(el.dataset.c==="minutes"&&e.minutes)e.ct=Date.now();renderAll();persist(id);return}
   if(el.dataset.note){e.notes=el.value.trim();persist(id);return}
 });
 /* ---------- repeat last week's exercises ---------- */
@@ -849,33 +850,44 @@ $("dayBox").addEventListener("click",ev=>{const b=ev.target.closest("[data-copy]
   const list=copyFrom(b.dataset.copy,st.day);markSeeded(st.day);renderAll();list.forEach(e=>persist(e.id));toast(`Added ${list.length} exercise${list.length===1?"":"s"} from ${longD(b.dataset.copy)}`)},true);
 $("autoRep").onchange=async()=>{if(!canEdit()){renderProfile();return}st.settings.autoRepeat=$("autoRep").checked;await guard(saveSettings,"autoStatus",$("autoRep").checked?"On":"Off");renderAll()};
 /* ---------- finish workout ---------- */
+function timedSpan(date){
+  const pts=[];for(const e of st.log.filter(x=>x.date===date)){
+    for(const s of e.setList||[])if(s.t)pts.push({t:s.t});for(const w of e.warmups||[])if(w.done&&w.t)pts.push({t:w.t});
+    if(e.type==="Cardio"&&e.ct&&e.minutes)pts.push({t:e.ct,cardio:Number(e.minutes)})}
+  if(!pts.length)return null;pts.sort((a,b)=>a.t-b.t);const first=pts[0],last=pts[pts.length-1];
+  const lead=first.cardio?first.cardio:1;const start=first.t-lead*60000;
+  return{start,end:last.t,min:Math.max(1,Math.round((last.t-start)/60000))};
+}
+const hm=t=>new Date(t).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"});
+function defaultLen(date){const sp=timedSpan(date);return sp&&sp.min>=5?sp.min:null}
 function renderFinish(){
   const items=dayItems();const box=$("finishPanel");if(!items.length){box.hidden=true;return}box.hidden=false;
   const D=st.days[st.day]||{};const calc=dayCalc(st.day,D.closed?D.minutes:(st.finishMin||null));
   const k=calc.kcal;const noProf=k===null;
   if(D.closed){
     box.innerHTML=`<div class="done-hero"><div class="eyebrow">Workout complete</div><div class="kcal"><b>${noProf?"—":"≈ "+k.toLocaleString()}</b><span>calories burned${noProf?"":` · ${calc.net.toLocaleString()} above resting ≈ ${fatLong(calc.net)} of body fat`}</span></div>
-      <div class="stats"><div class="stat"><b>${calc.minutes}</b><span>Minutes</span></div><div class="stat"><b>${items.filter(hasWork).length}</b><span>Exercises</span></div><div class="stat"><b>${items.reduce((a,e)=>a+mainSets(e).length,0)}</b><span>Working sets</span></div><div class="stat"><b>${fmtW(items.reduce((a,e)=>a+vol(e),0))}</b><span>Volume (${unit()})</span></div></div>
+      <div class="stats"><div class="stat"><b>${calc.minutes}</b><span>Minutes${D.start&&!D.manual?` · ${hm(D.start)}–${hm(D.end)}`:""}</span></div><div class="stat"><b>${items.filter(hasWork).length}</b><span>Exercises</span></div><div class="stat"><b>${items.reduce((a,e)=>a+mainSets(e).length,0)}</b><span>Working sets</span></div><div class="stat"><b>${fmtW(items.reduce((a,e)=>a+vol(e),0))}</b><span>Volume (${unit()})</span></div></div>
       ${noProf?`<p class="muted" style="margin:0">Add your age, sex and weight on the <a href="#profile" data-go="profile">Profile</a> tab to see calories.</p>`:`<p class="muted" style="margin:0;font-size:.8rem">Estimate based on your profile, the time you trained and published activity values. It includes the calories your body burns at rest during that time.</p>`}
       <div class="row"><button id="reopen">Reopen workout</button></div></div>`;
   }else{
-    const opts5=Array.from({length:48},(_,i)=>(i+1)*5);const sel=st.finishMin||calc.est;
+    const sp=timedSpan(st.day);const auto=defaultLen(st.day);const sel=st.finishMin||auto||calc.est;
     box.innerHTML=`<div><div class="eyebrow">When you're done</div><h2>Finish workout</h2></div>
-      <div class="grid2"><label>Workout length (minutes)<select id="finMin">${opts(opts5,sel)}</select></label><div class="kcal small"><b>${noProf?"—":"≈ "+k.toLocaleString()}</b><span>calories so far</span></div></div>
-      <p class="muted" style="margin:0;font-size:.82rem">${noProf?`Add your age, sex and weight on the <a href="#profile" data-go="profile">Profile</a> tab to see calories. `:""}The length is estimated from your sets and rest times. Change it if you timed your workout.</p>
+      <div class="grid2"><label>Workout length (minutes)<input id="finMin" type="number" inputmode="numeric" min="1" max="600" step="1" value="${sel}"></label><div class="kcal small"><b>${noProf?"—":"≈ "+k.toLocaleString()}</b><span>calories so far</span></div></div>
+      <p class="muted" style="margin:0;font-size:.82rem">${noProf?`Add your age, sex and weight on the <a href="#profile" data-go="profile">Profile</a> tab to see calories. `:""}${st.finishMin?`You set this by hand. <button class="linkbtn" id="finAuto">Use the timed length</button>`:auto?`Timed automatically from your first entry at ${hm(sp.start)} to your last at ${hm(sp.end)}. Type a different number to change it.`:"Estimated from your sets and rest times until you log a few sets. Type a different number to change it."}</p>
       <div class="row"><button class="primary" id="finish">Finish workout</button></div>`;
   }
 }
 $("finishPanel").addEventListener("click",ev=>{
   const g=ev.target.closest("[data-go]");if(g){ev.preventDefault();go(g.dataset.go);window.scrollTo({top:0});return}
   const b=ev.target.closest("button");if(!b||!canEdit())return;
-  if(b.id==="finish"){const calc=dayCalc(st.day,st.finishMin||null);const minutes=st.finishMin||calc.est;
+  if(b.id==="finAuto"){st.finishMin=null;renderFinish();return}
+  if(b.id==="finish"){const calc=dayCalc(st.day,st.finishMin||null);const auto=defaultLen(st.day);const minutes=st.finishMin||auto||calc.est;const sp=timedSpan(st.day);
     for(const e of dayItems())if(!e.done){e.done=true;persist(e.id)}
-    st.days[st.day]={closed:true,minutes,ts:Date.now()};st.finishMin=null;persistDay(st.day);renderAll();
+    st.days[st.day]={closed:true,minutes,ts:Date.now(),manual:!!st.finishMin,start:sp?sp.start:null,end:sp?sp.end:null};st.finishMin=null;persistDay(st.day);renderAll();
     const k=dayCalc(st.day,minutes).kcal;toast(k!==null?`Workout complete · ≈ ${k} calories`:"Workout complete");window.scrollTo({top:0,behavior:"smooth"});return}
-  if(b.id==="reopen"){const D=st.days[st.day];if(D){D.closed=false;st.finishMin=D.minutes;persistDay(st.day)}renderAll();toast("Workout reopened. Untick Complete on an exercise to edit it.")}
+  if(b.id==="reopen"){const D=st.days[st.day];if(D){D.closed=false;st.finishMin=D.manual?D.minutes:null;persistDay(st.day)}renderAll();toast("Workout reopened. Untick Complete on an exercise to edit it.")}
 });
-$("finishPanel").addEventListener("change",ev=>{if(ev.target.id==="finMin"){st.finishMin=Number(ev.target.value);renderFinish()}});
+$("finishPanel").addEventListener("change",ev=>{if(ev.target.id==="finMin"){const v=Math.round(Number(ev.target.value));st.finishMin=v>0&&v<=600?v:null;renderFinish()}});
 function setDay(d){if(!d)return;st.day=d;st.confirm=null;st.finishMin=null;renderAll()}
 $("dayPrev").onclick=()=>setDay(addDays(st.day,-1));
 $("dayNext").onclick=()=>setDay(addDays(st.day,1));
