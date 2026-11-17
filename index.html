@@ -277,6 +277,13 @@ nav.tabs{grid-template-columns:repeat(4,1fr)}
 .pvtable tbody tr:nth-child(even) td:not(.rn){background:color-mix(in srgb,var(--sunk) 45%,var(--surface))}
 .pvact{gap:8px}
 .linkbtn{background:none;border:0;padding:0;color:var(--accent);font:inherit;font-weight:600;text-decoration:underline;cursor:pointer}
+.setrow.ro,.wurow.ro{width:100%;text-align:left;font:inherit;font-weight:400;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 8px;cursor:pointer;align-items:center}
+.wurow.ro{grid-template-columns:30px 1.3fr 1fr 40px 32px;background:color-mix(in srgb,var(--good) 7%,var(--surface))}
+.setrow.ro:hover,.wurow.ro:hover{border-color:var(--accent)}
+.rov{font-weight:700;font-variant-numeric:tabular-nums}.pen{color:var(--muted);text-align:center}
+.okmark{color:var(--good);font-weight:800;text-align:center}
+.setrow.editing,.wurow.editing{padding:8px;border:2px solid var(--accent);border-radius:10px;background:color-mix(in srgb,var(--accent) 6%,var(--surface))}
+.editbar{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;font-size:.8rem}.editbar button{padding:6px 14px}
 .seg{display:flex;gap:4px}.seg .chip[aria-pressed="true"]{background:var(--p-core);border-color:var(--p-core);color:#fff}
 .fateq{display:grid;gap:6px}.fateq div{display:grid;grid-template-columns:80px 1fr;gap:8px;font-size:.86rem;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--p-core) 10%,var(--surface))}
 .fateq b{font-family:var(--display);text-transform:uppercase;letter-spacing:.04em;color:var(--p-core)}
@@ -758,11 +765,14 @@ function card(e){
       else if(W===0)msg="Body-weight exercise: a few easy reps are enough to warm up.";
       else{rows=suggestWarmups(e.exercise,e.target,W).map(s=>({w:s.w,r:s.r,done:false}));if(!rows.length)msg="This weight is light enough that no warm-up sets are needed."}
       const n=rows?rows.length:0,dn=rows?rows.filter(r=>r.done).length:0;const open=!!ui.wuOpen;
-      wuHTML=`<div class="wu"><button class="wutoggle" data-act="wutoggle" aria-expanded="${open}"><span><b>Warm-up</b> ${n?`${dn} of ${n} done${saved?"":" · suggested"}`:"none needed"}</span><span aria-hidden="true">${open?"▴":"▾"}</span></button>${open?`<div class="wubody">${msg?`<p class="muted wumsg">${esc(msg)}</p>`:""}${n?`<div class="wuh"><span>Done</span><span>Weight (${unit()})</span><span>Reps</span><span style="text-align:right">%</span><span></span></div>${rows.map((s,k)=>`<div class="wurow${s.done?" done":""}" data-k="${k}"><label class="check"><input type="checkbox" data-wu="done"${s.done?" checked":""} aria-label="Warm-up set ${k+1} done"></label>${wField('data-wu="w"',s.w,`warm-up set ${k+1} weight`)}<select data-wu="r" aria-label="Warm-up set ${k+1} reps">${opts(REPS,s.r)}</select><span class="pct">${W?Math.round(s.w/W*100)+"%":""}</span><button class="icon danger" data-act="rmwu" aria-label="Remove warm-up set ${k+1}">×</button></div>`).join("")}`:""}${W?`<button class="ghost addset" data-act="addwu">+ Add a warm-up set</button>`:""}</div>`:""}</div>`;
+      wuHTML=`<div class="wu"><button class="wutoggle" data-act="wutoggle" aria-expanded="${open}"><span><b>Warm-up</b> ${n?`${dn} of ${n} done${saved?"":" · suggested"}`:"none needed"}</span><span aria-hidden="true">${open?"▴":"▾"}</span></button>${open?`<div class="wubody">${msg?`<p class="muted wumsg">${esc(msg)}</p>`:""}${n?`<div class="wuh"><span>Done</span><span>Weight (${unit()})</span><span>Reps</span><span style="text-align:right">%</span><span></span></div>${rows.map((s,k)=>s.done&&ui.wuEdit!==k?`<button class="wurow ro done" data-act="editwu" data-k="${k}" aria-label="Edit warm-up set ${k+1}"><span class="okmark">✓</span><span class="rov">${s.w?fmtW(s.w)+" "+unit():"Body wt"}</span><span class="rov">${s.r} reps</span><span class="pct">${W?Math.round(s.w/W*100)+"%":""}</span><span class="pen" aria-hidden="true">✎</span></button>`:`<div class="wurow${s.done?" done editing":""}" data-k="${k}"><label class="check"><input type="checkbox" data-wu="done"${s.done?" checked":""} aria-label="Warm-up set ${k+1} done"></label>${wField('data-wu="w"',s.w,`warm-up set ${k+1} weight`)}<select data-wu="r" aria-label="Warm-up set ${k+1} reps">${opts(REPS,s.r)}</select><span class="pct">${W?Math.round(s.w/W*100)+"%":""}</span><button class="icon danger" data-act="rmwu" aria-label="Remove warm-up set ${k+1}">×</button>${s.done?`<div class="editbar"><span class="muted">Editing warm-up set ${k+1}</span><button class="primary" data-act="donewu">Done</button></div>`:""}</div>`).join("")}`:""}${W?`<button class="ghost addset" data-act="addwu">+ Add a warm-up set</button>`:""}</div>`:""}</div>`;
     }
     let main=0;
     const rows=sets.map((s,k)=>{const lab=s.drop?"↳":String(++main);
-      return `<div class="setrow${s.drop?" drop":""}" data-k="${k}"><span class="sn${s.drop?" d":""}" title="${s.drop?"Drop set":"Set "+main}">${lab}</span>${timed?"<span></span>":wField('data-s="w"',r2(conv(s.w,e.unit)),`${s.drop?"drop set":"set "+main} weight`)}<select data-s="r" aria-label="${s.drop?"Drop set":"Set "+main} ${timed?"seconds":"reps"}">${opts(timed?SECS:REPS,s.r)}</select><button class="icon danger" data-act="rmset" aria-label="Remove ${s.drop?"drop set":"set "+main}">${st.confirm==="set:"+e.id+":"+k?"?":"×"}</button></div>`}).join("");
+      const nm=s.drop?"drop set":"set "+main;
+      if(ui.edit!==k)return `<button class="setrow ro${s.drop?" drop":""}" data-act="editset" data-k="${k}" aria-label="Edit ${nm}"><span class="sn${s.drop?" d":""}">${lab}</span><span class="rov">${timed?"":Number(s.w)?fmtW(conv(s.w,e.unit))+" "+unit():"Body wt"}</span><span class="rov">${s.r} ${timed?"sec":"reps"}</span><span class="pen" aria-hidden="true">✎</span></button>`;
+      return `<div class="setrow editing${s.drop?" drop":""}" data-k="${k}"><span class="sn${s.drop?" d":""}" title="${s.drop?"Drop set":"Set "+main}">${lab}</span>${timed?"<span></span>":wField('data-s="w"',r2(conv(s.w,e.unit)),`${nm} weight`)}<select data-s="r" aria-label="${cap(nm)} ${timed?"seconds":"reps"}">${opts(timed?SECS:REPS,s.r)}</select><button class="icon danger" data-act="rmset" aria-label="Remove ${nm}">${st.confirm==="set:"+e.id+":"+k?"?":"×"}</button>
+        <div class="editbar"><span class="muted">Editing ${esc(nm)}</span><button class="primary" data-act="doneedit">Done</button></div></div>`}).join("");
     const nx=ui.next;const drop=!!ui.drop&&sets.length>0&&!timed;const nextNo=mainSets(e).length+1;
     const nextRow=`<div class="nextrow${timed?" t":""}${drop?" isdrop":""}"><span class="snx">${drop?"↳":nextNo}</span>${timed?"":`<label>${drop?"Drop weight":"Weight"} (${unit()})${wField('data-nx="w"',nx.w,drop?"drop set weight":"next set weight")}</label>`}<label>${timed?"Seconds":"Reps"}<select data-nx="r">${opts(timed?SECS:REPS,nx.r)}</select></label><button class="primary" data-act="logset">${drop?"Log drop":"Log set "+nextNo}</button></div>
       ${!timed&&sets.length?`<div class="droprow"><button class="chip${drop?" on":""}" data-act="droptoggle" aria-pressed="${drop}">${drop?"✓ Drop set on":"+ Drop set"}</button><span class="muted">${drop?"Lift straight after the last set with about 20% less weight. Tap again to go back to normal sets.":"Right after a set, cut the weight about 20% and keep going."}</span></div>`:""}`;
@@ -787,6 +797,10 @@ $("dayBox").addEventListener("click",async ev=>{
   if(act==="info"){openDetail(e.exercise);return}
   if(act==="wutoggle"){uiOf(e,coach(e)).wuOpen=!st.ui[id].wuOpen;renderDay();return}
   if(e.done&&LOCKED_ACTS.has(act)){toast("Untick Complete to change this exercise.",true);return}
+  if(act==="editset"){if(e.done){toast("Untick Complete to change this exercise.",true);return}const u=uiOf(e,coach(e));u.edit=Number(btn.dataset.k);u.wuEdit=null;st.confirm=null;renderDay();return}
+  if(act==="doneedit"){const u=uiOf(e,coach(e));u.edit=null;st.confirm=null;renderDay();return}
+  if(act==="editwu"){if(e.done){toast("Untick Complete to change this exercise.",true);return}const u=uiOf(e,coach(e));u.wuEdit=Number(btn.dataset.k);u.edit=null;renderDay();return}
+  if(act==="donewu"){uiOf(e,coach(e)).wuEdit=null;renderDay();return}
   if(!canEdit())return;
   if(act==="rmex"){if(st.confirm!=="ex:"+id){st.confirm="ex:"+id;renderDay();return}st.confirm=null;st.log=st.log.filter(x=>x!==e);delete st.ui[id];renderAll();persist(id);toast(`Removed ${e.exercise}`);return}
   if(act==="droptoggle"){const u=uiOf(e,coach(e));u.drop=!u.drop;const s=e.setList||[];const l=s[s.length-1];
@@ -796,13 +810,13 @@ $("dayBox").addEventListener("click",async ev=>{
     if(!isTimed(e)&&(w===""||isNaN(Number(w))||Number(w)<0)){toast("Enter a weight first (0 for body weight).",true);return}
     const drop=!!u.drop&&(e.setList||[]).length>0;
     normalizeUnit(e);const set={w:Number(w),r,t:Date.now()};if(drop)set.drop=true;e.setList=(e.setList||[]).concat([set]);finalize(e);
-    u.next=null;u.wuOpen=false;st.confirm=null;
+    u.next=null;u.wuOpen=false;u.edit=null;u.wuEdit=null;st.confirm=null;
     if(drop){u.next={w:Number(w)?roundW(Number(w)*0.8):0,r}}
     renderAll();persist(id);toast(drop?`${e.exercise}: drop set logged`:`${e.exercise}: set ${mainSets(e).length} logged`);return}
   if(act==="rmset"){const k=Number(btn.closest(".setrow").dataset.k);const key="set:"+id+":"+k;if(st.confirm!==key){st.confirm=key;renderDay();return}
-    st.confirm=null;normalizeUnit(e);e.setList.splice(k,1);if(e.setList[k]&&e.setList[k].drop&&(k===0||!e.setList[k-1]))delete e.setList[k].drop;finalize(e);if(ui){ui.next=null;if(!e.setList.length)ui.drop=false}renderAll();persist(id);return}
+    st.confirm=null;normalizeUnit(e);e.setList.splice(k,1);if(e.setList[k]&&e.setList[k].drop&&(k===0||!e.setList[k-1]))delete e.setList[k].drop;finalize(e);if(ui){ui.next=null;ui.edit=null;if(!e.setList.length)ui.drop=false}renderAll();persist(id);return}
   if(act==="addwu"){materialize(e);const l=e.warmups[e.warmups.length-1];const bar=unit()==="kg"?20:45;e.warmups.push({w:l?l.w:bar,r:l?Math.max(1,l.r-2):5,done:false});uiOf(e).wuOpen=true;renderDay();persist(id);return}
-  if(act==="rmwu"){materialize(e);e.warmups.splice(Number(btn.closest(".wurow").dataset.k),1);renderDay();persist(id);return}
+  if(act==="rmwu"){materialize(e);uiOf(e).wuEdit=null;e.warmups.splice(Number(btn.closest(".wurow").dataset.k),1);renderDay();persist(id);return}
 });
 function refreshWU(e,cardEl){const tmp=document.createElement("div");tmp.innerHTML=card(e);const nw=tmp.querySelector(".wu"),old=cardEl.querySelector(".wu");if(nw&&old)old.replaceWith(nw);const nc=tmp.querySelector(".coach"),oc=cardEl.querySelector(".coach");if(nc&&oc)oc.replaceWith(nc)}
 let wuT=null;
@@ -821,7 +835,7 @@ $("dayBox").addEventListener("change",ev=>{
   if(el.dataset.tgt){e.target=el.value;if(st.ui[id])st.ui[id].next=null;renderDay();persist(id);return}
   if(el.dataset.s){const k=Number(el.closest(".setrow").dataset.k);normalizeUnit(e);const s=e.setList[k];if(!s)return;const v=el.value===""?0:Number(el.value);if(isNaN(v)||v<0){renderDay();return}s[el.dataset.s]=v;finalize(e);if(st.ui[id])st.ui[id].next=null;renderAll();persist(id);return}
   if(el.dataset.wu){const k=Number(el.closest(".wurow").dataset.k);materialize(e);const s=e.warmups[k];if(!s)return;
-    if(el.dataset.wu==="done"){s.done=el.checked;if(el.checked)s.t=Date.now();else delete s.t}else{const v=el.value===""?0:Number(el.value);if(!isNaN(v)&&v>=0)s[el.dataset.wu]=v}renderDay();persist(id);
+    if(el.dataset.wu==="done"){s.done=el.checked;if(el.checked){s.t=Date.now();uiOf(e).wuEdit=null}else delete s.t}else{const v=el.value===""?0:Number(el.value);if(!isNaN(v)&&v>=0)s[el.dataset.wu]=v}renderDay();persist(id);
     if(el.dataset.wu==="done"&&el.checked&&e.warmups.every(w=>w.done))toast("Warm-up done. Time for working sets.");return}
   if(el.dataset.c){e[el.dataset.c]=Number(el.value)||0;if(el.dataset.c==="minutes"&&e.minutes)e.ct=Date.now();renderAll();persist(id);return}
   if(el.dataset.note){e.notes=el.value.trim();persist(id);return}
