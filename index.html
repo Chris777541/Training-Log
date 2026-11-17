@@ -294,6 +294,9 @@ nav.tabs{grid-template-columns:repeat(4,1fr)}
 .lvbtn[aria-pressed="true"]{background:var(--lc);border-color:var(--lc);color:#fff}.lvbtn[aria-pressed="true"] small{color:rgba(255,255,255,.9)}
 .lvinfo{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:.82rem;color:var(--muted)}.lvinfo b{color:var(--fg)}
 @media (max-width:400px){.lvbtn small{display:none}}
+.watch{display:grid;gap:8px;padding:10px 12px;border-radius:12px;background:linear-gradient(135deg,color-mix(in srgb,#FF3D77 10%,var(--surface)),color-mix(in srgb,#2B5BFF 10%,var(--surface)));border:1px solid color-mix(in srgb,#FF3D77 25%,var(--line))}
+.whead{display:grid;gap:2px;font-size:.84rem}.whead b{font-family:var(--display);font-size:1.05rem;letter-spacing:.02em}
+.wform{align-items:end}.wform button{width:100%}.wmsg{margin:0;font-size:.8rem;min-height:0}.wmsg:empty{display:none}
 .seg{display:flex;gap:4px}.seg .chip[aria-pressed="true"]{background:var(--p-core);border-color:var(--p-core);color:#fff}
 .fateq{display:grid;gap:6px}.fateq div{display:grid;grid-template-columns:80px 1fr;gap:8px;font-size:.86rem;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--p-core) 10%,var(--surface))}
 .fateq b{font-family:var(--display);text-transform:uppercase;letter-spacing:.04em;color:var(--p-core)}
@@ -777,8 +780,23 @@ function dayCalc(date,override){
   const L=override||est;const scale=liftMin>0?Math.min(3,Math.max(.3,(L-cardioMin)/liftMin)):1;
   const rate=kcalPerMetMin();const metMin=lift.reduce((a,e)=>a+metFor(e)*minutesFor(e),0)*scale+card.reduce((a,e)=>a+metFor(e)*minutesFor(e),0);
   const netMin=lift.reduce((a,e)=>a+(metFor(e)-1)*minutesFor(e),0)*scale+card.reduce((a,e)=>a+(metFor(e)-1)*minutesFor(e),0);
+  const W=(st.days[date]||{}).watch;
+  if(W&&W.active>0)return{est,minutes:L,kcal:Math.round(W.active+(rate?rate*L:0)),net:Math.round(W.active),watch:W};
   return{est,minutes:L,kcal:rate?Math.round(metMin*rate):null,net:rate?Math.round(netMin*rate):null};
 }
+function parseWatch(t){t=String(t||"");const g=k=>{const m=t.match(new RegExp(k+"\\s*=\\s*([0-9][0-9.,]*)","i"));return m?Number(m[1].replace(/,(?=\d{3}\b)/g,"").replace(",",".")):null};
+  const active=g("kcal"),hr=g("hr"),min=g("min");return active&&active>0&&active<5000?{active:Math.round(active),hr:hr&&hr>30&&hr<230?Math.round(hr):null,min:min&&min>0&&min<600?Math.round(min):null}:null}
+function watchBlock(){
+  const D=st.days[st.day]||{};const W=D.watch;
+  return `<div class="watch"><div class="whead"><b>⌚ From your watch</b><span>${W?`Using your watch: <strong>${W.active.toLocaleString()} active calories</strong>${W.hr?` · avg ${W.hr} bpm`:""}${W.src?` (${esc(W.src)})`:""}`:"Optional: use your watch's calories instead of the estimate."}</span></div>
+    <div class="row"><button id="wPaste">Paste from Apple Health</button><button class="ghost" id="wManual">${st.wOpen?"Hide":"Type them in"}</button>${W?`<button class="ghost danger" id="wClear">Use the estimate instead</button>`:""}</div>
+    ${st.wOpen?`<div class="grid3 wform"><label>Active calories<input id="wKcal" type="number" inputmode="numeric" min="1" max="5000" value="${W?W.active:""}" placeholder="e.g. 310"></label><label>Avg heart rate<input id="wHr" type="number" inputmode="numeric" min="30" max="230" value="${W&&W.hr?W.hr:""}" placeholder="optional"></label><label>&nbsp;<button class="primary" id="wSave">Save</button></label>
+      <label style="grid-column:1/-1">Or paste the text your Shortcut copied<input id="wText" placeholder="TL1;kcal=310;hr=128;min=52" autocomplete="off"></label></div>`:""}
+    <p class="muted wmsg" id="wMsg"></p></div>`;
+}
+function saveWatch(w,src){if(!canEdit())return;const D=st.days[st.day]||{};st.days[st.day]=Object.assign({},D,{watch:Object.assign({src},w)});
+  if(w.min&&!(D.closed)&&!st.finishMin)st.finishMin=w.min;persistDay(st.day);st.wOpen=false;renderAll();
+  const c=dayCalc(st.day,(st.days[st.day].closed?st.days[st.day].minutes:st.finishMin)||null);toast(`Watch data saved${c.kcal!==null?` · ≈ ${c.kcal} calories in total`:""}`)}
 const KCAL_LB=3500,KCAL_KG=7700;
 function fmtFat(v){return v<1?v.toFixed(2):v.toFixed(1)}
 function fatLong(net){const lb=fmtFat(net/KCAL_LB),kg=fmtFat(net/KCAL_KG);return unit()==="kg"?`${kg} kg (${lb} lb)`:`${lb} lb (${kg} kg)`}
@@ -953,28 +971,36 @@ function renderFinish(){
   const D=st.days[st.day]||{};const calc=dayCalc(st.day,D.closed?D.minutes:(st.finishMin||null));
   const k=calc.kcal;const noProf=k===null;
   if(D.closed){
-    box.innerHTML=`<div class="done-hero"><div class="eyebrow">Workout complete</div><div class="kcal"><b>${noProf?"—":"≈ "+k.toLocaleString()}</b><span>calories burned${noProf?"":` · ${calc.net.toLocaleString()} above resting ≈ ${fatLong(calc.net)} of body fat`}</span></div>
+    box.innerHTML=`<div class="done-hero"><div class="eyebrow">Workout complete</div><div class="kcal"><b>${noProf?"—":"≈ "+k.toLocaleString()}</b><span>calories burned${calc.watch?` · from your watch${calc.watch.hr?`, avg ${calc.watch.hr} bpm`:""}`:""}${calc.net!==null?` · ${calc.net.toLocaleString()} above resting ≈ ${fatLong(calc.net)} of body fat`:""}</span></div>
       <div class="stats"><div class="stat"><b>${calc.minutes}</b><span>Minutes${D.start&&!D.manual?` · ${hm(D.start)}–${hm(D.end)}`:""}</span></div><div class="stat"><b>${items.filter(hasWork).length}</b><span>Exercises</span></div><div class="stat"><b>${items.reduce((a,e)=>a+mainSets(e).length,0)}</b><span>Working sets</span></div><div class="stat"><b>${fmtW(items.reduce((a,e)=>a+vol(e),0))}</b><span>Volume (${unit()})</span></div></div>
       ${noProf?`<p class="muted" style="margin:0">Add your age, sex and weight on the <a href="#profile" data-go="profile">Profile</a> tab to see calories.</p>`:`<p class="muted" style="margin:0;font-size:.8rem">Estimate based on your profile, the time you trained and published activity values. It includes the calories your body burns at rest during that time.</p>`}
-      <div class="row"><button id="reopen">Reopen workout</button></div></div>`;
+      ${watchBlock()}<div class="row"><button id="reopen">Reopen workout</button></div></div>`;
   }else{
     const sp=timedSpan(st.day);const auto=defaultLen(st.day);const sel=st.finishMin||auto||calc.est;
     box.innerHTML=`<div><div class="eyebrow">When you're done</div><h2>Finish workout</h2></div>
       <div class="grid2"><label>Workout length (minutes)<input id="finMin" type="number" inputmode="numeric" min="1" max="600" step="1" value="${sel}"></label><div class="kcal small"><b>${noProf?"—":"≈ "+k.toLocaleString()}</b><span>calories so far</span></div></div>
       <p class="muted" style="margin:0;font-size:.82rem">${noProf?`Add your age, sex and weight on the <a href="#profile" data-go="profile">Profile</a> tab to see calories. `:""}${st.finishMin?`You set this by hand. <button class="linkbtn" id="finAuto">Use the timed length</button>`:auto?`Timed automatically from your first entry at ${hm(sp.start)} to your last at ${hm(sp.end)}. Type a different number to change it.`:"Estimated from your sets and rest times until you log a few sets. Type a different number to change it."}</p>
-      <div class="row"><button class="primary" id="finish">Finish workout</button></div>`;
+      ${watchBlock()}<div class="row"><button class="primary" id="finish">Finish workout</button></div>`;
   }
 }
-$("finishPanel").addEventListener("click",ev=>{
+$("finishPanel").addEventListener("click",async ev=>{
   const g=ev.target.closest("[data-go]");if(g){ev.preventDefault();go(g.dataset.go);window.scrollTo({top:0});return}
   const b=ev.target.closest("button");if(!b||!canEdit())return;
   if(b.id==="finAuto"){st.finishMin=null;renderFinish();return}
+  if(b.id==="wManual"){st.wOpen=!st.wOpen;renderFinish();if(st.wOpen)setTimeout(()=>{const i=$("wKcal");if(i)i.focus()},50);return}
+  if(b.id==="wClear"){const D=st.days[st.day];if(D){delete D.watch;persistDay(st.day)}renderAll();toast("Back to the estimate");return}
+  if(b.id==="wSave"){const a=Number($("wKcal").value),h=Number($("wHr").value);if(!(a>0&&a<5000)){$("wMsg").textContent="Enter your watch's active calories for this workout.";return}
+    saveWatch({active:Math.round(a),hr:h>30&&h<230?Math.round(h):null,min:null},"typed in");return}
+  if(b.id==="wPaste"){let t="";try{t=await navigator.clipboard.readText()}catch(_){}
+    const w=parseWatch(t);if(w){saveWatch(w,"Apple Health");return}
+    st.wOpen=true;renderFinish();$("wMsg").textContent=t?"That copied text isn't from the Training Log Shortcut. Run the Shortcut again, or type the numbers in.":"Couldn't read the clipboard here. Paste the Shortcut's text into the box below, or type the numbers in.";return}
   if(b.id==="finish"){const calc=dayCalc(st.day,st.finishMin||null);const auto=defaultLen(st.day);const minutes=st.finishMin||auto||calc.est;const sp=timedSpan(st.day);
     for(const e of dayItems())if(!e.done){e.done=true;persist(e.id)}
-    st.days[st.day]={closed:true,minutes,ts:Date.now(),manual:!!st.finishMin,start:sp?sp.start:null,end:sp?sp.end:null};st.finishMin=null;persistDay(st.day);renderAll();
+    st.days[st.day]=Object.assign({},st.days[st.day]||{},{closed:true,minutes,ts:Date.now(),manual:!!st.finishMin,start:sp?sp.start:null,end:sp?sp.end:null});st.finishMin=null;persistDay(st.day);renderAll();
     const k=dayCalc(st.day,minutes).kcal;toast(k!==null?`Workout complete · ≈ ${k} calories`:"Workout complete");window.scrollTo({top:0,behavior:"smooth"});return}
   if(b.id==="reopen"){const D=st.days[st.day];if(D){D.closed=false;st.finishMin=D.manual?D.minutes:null;persistDay(st.day)}renderAll();toast("Workout reopened. Untick Complete on an exercise to edit it.")}
 });
+$("finishPanel").addEventListener("input",ev=>{if(ev.target.id==="wText"){const w=parseWatch(ev.target.value);if(w)saveWatch(w,"Apple Health")}});
 $("finishPanel").addEventListener("change",ev=>{if(ev.target.id==="finMin"){const v=Math.round(Number(ev.target.value));st.finishMin=v>0&&v<=600?v:null;renderFinish()}});
 function setDay(d){if(!d)return;st.day=d;st.confirm=null;st.finishMin=null;renderAll()}
 $("dayPrev").onclick=()=>setDay(addDays(st.day,-1));
