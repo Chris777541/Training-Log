@@ -265,6 +265,7 @@ nav.tabs{grid-template-columns:repeat(4,1fr)}
 .filebtn{display:inline-flex;align-items:center;font-size:.92rem;font-weight:600;color:var(--fg);border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:9px 14px;cursor:pointer;position:relative}
 .filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
 .filebtn:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+.toggle{display:flex;gap:10px;align-items:flex-start;font-size:.95rem;font-weight:500;color:var(--fg)}.toggle input{width:22px;height:22px;flex:none;margin-top:1px;accent-color:var(--good)}
 .seg{display:flex;gap:4px}.seg .chip[aria-pressed="true"]{background:var(--p-core);border-color:var(--p-core);color:#fff}
 .fateq{display:grid;gap:6px}.fateq div{display:grid;grid-template-columns:80px 1fr;gap:8px;font-size:.86rem;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--p-core) 10%,var(--surface))}
 .fateq b{font-family:var(--display);text-transform:uppercase;letter-spacing:.04em;color:var(--p-core)}
@@ -346,12 +347,6 @@ nav.tabs{grid-template-columns:repeat(4,1fr)}
       <div class="tip"><b>Before you lift</b> 5–10 minutes of easy cardio (bike, rower or incline walk) to warm up your body. Then do the warm-up sets shown for each exercise.</div>
     </div>
 
-    <div class="panel">
-      <div><div class="eyebrow">Optional</div><h2>Start from a workout</h2></div>
-      <label>Workout<select id="startSel"></select></label>
-      <div class="preview" id="startPreview"></div>
-      <div class="row"><button id="startAdd">Add these exercises</button></div>
-    </div>
 
     <div id="dayBox" style="display:grid;gap:14px"></div>
     <div class="panel" id="addPanel">
@@ -440,6 +435,12 @@ nav.tabs{grid-template-columns:repeat(4,1fr)}
         <label style="grid-column:1/-1">Physical activity per week<select id="pfAct"></select></label>
       </div>
       <div class="row"><button class="primary" id="pfSave">Save profile</button><span class="status" id="pfStatus"></span></div>
+    </div>
+    <div class="panel">
+      <div><div class="eyebrow">Workout defaults</div><h2>Repeat last week</h2></div>
+      <label class="toggle"><input type="checkbox" id="autoRep"><span>Start each day with the exercises from the same day last week</span></label>
+      <p class="muted" style="margin:0;font-size:.82rem">When you open the Log on a new day, it adds the exercises you did on that weekday last week, with the same rep goals and no sets yet. If you missed last week, it looks back up to four weeks. Remove or add exercises as usual.</p>
+      <div class="status" id="autoStatus"></div>
     </div>
     <div class="panel">
       <div><div class="eyebrow">Estimates</div><h2>Your calories</h2></div>
@@ -649,7 +650,16 @@ function canEdit(){if(st.ro){toast("You can view this log but not change it.",tr
 const findE=id=>st.log.find(x=>x.id===id);
 
 /* ---------- LOG: day ---------- */
-function dayItems(){return st.log.filter(e=>e.date===st.day).sort((a,b)=>(a.ts||0)-(b.ts||0))}
+// Order: heavy push/pull lifts, other compound lifts, accessory lifts, abs/core, cardio
+function exRank(e){
+  if(e.type==="Cardio")return 4;const x=EXBY[e.exercise];
+  if(isTimed(e)||(e.part||"")==="Core"||(x&&x.pm.includes("abdominals")))return 3;
+  const rr=repRange(e.target);const big=BENCHLIKE.has(e.exercise)||SQUATLIKE.has(e.exercise)||DEADLIKE.has(e.exercise)||HEAVY.has(e.exercise);
+  const comp=UPPER_BIG.has(e.exercise)||LOWER_BIG.has(e.exercise)||isCompound(e.exercise);
+  if(big||(comp&&((rr&&rr[1]<=6)||(x&&x.eq==="barbell"&&["push","pull"].includes(x.fo)))))return 0;
+  return comp?1:2;
+}
+function dayItems(){return st.log.filter(e=>e.date===st.day).sort((a,b)=>exRank(a)-exRank(b)||(a.ts||0)-(b.ts||0))}
 function renderDay(){
   const t=today();$("dayLabel").textContent=st.day===t?"Today · "+longD(st.day):longD(st.day)+", "+parse(st.day).getFullYear();
   $("dayInput").value=st.day;$("dayToday").hidden=st.day===t;
@@ -658,7 +668,8 @@ function renderDay(){
   const v=lifts.reduce((a,e)=>a+vol(e),0);const mins=items.filter(e=>e.type==="Cardio").reduce((a,e)=>a+(Number(e.minutes)||0),0);
   $("daySum").innerHTML=`<div class="stat"><b>${items.length}</b><span>Exercises</span></div><div class="stat"><b>${sets}</b><span>Working sets</span></div>
     <div class="stat"><b>${fmtW(v)}</b><span>Volume (${unit()})</span></div>${(()=>{const D=st.days[st.day];if(D&&D.closed){const c=dayCalc(st.day,D.minutes);return `<div class="stat"><b>${c.kcal!==null?"≈ "+c.kcal.toLocaleString():"—"}</b><span>Calories burned</span></div>`}return `<div class="stat"><b>${mins||wu}</b><span>${mins?"Cardio minutes":"Warm-up sets done"}</span></div>`})()}`;
-  $("dayBox").innerHTML=items.length?items.map(card).join(""):`<div class="panel empty">No exercises logged for this day yet.<br>Start from a workout above, or add an exercise below as you go.</div>`;
+  const src=items.length?null:sourceDay(st.day);
+  $("dayBox").innerHTML=items.length?items.map(card).join(""):`<div class="panel empty">No exercises for this day yet. Add one below as you go.${src?`<div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-copy="${esc(src)}">Copy exercises from ${esc(longD(src))}</button></div>`:""}</div>`;
   renderFinish();
 }
 /* ---------- calories (Compendium of Physical Activities METs + Schofield BMR) ---------- */
@@ -718,7 +729,7 @@ function card(e){
     return `<article class="day ${isC?"cardio":"lifting"} locked" data-id="${esc(e.id)}">${head}<div class="exbody">${body}</div></article>`;
   }
   if(isC){
-    body=`${lastBox(e,last)}<div class="grid2"><label>Minutes<select data-c="minutes">${opts(MINUTES,e.minutes||30)}</select></label><label>Distance (km)<input data-c="distance" type="number" inputmode="decimal" step="0.1" min="0" value="${e.distance?esc(e.distance):""}" placeholder="optional"></label></div>`;
+    body=`${lastBox(e,last)}<div class="grid2"><label>Minutes<select data-c="minutes">${e.minutes?"":'<option value="0" selected>Choose…</option>'}${opts(MINUTES,e.minutes||undefined)}</select></label><label>Distance (km)<input data-c="distance" type="number" inputmode="decimal" step="0.1" min="0" value="${e.distance?esc(e.distance):""}" placeholder="optional"></label></div>`;
   }else{
     const c=coach(e);const ui=uiOf(e,c);const sets=e.setList||[];
     const tgt=`${lastBox(e,last)}<div class="spread"><label class="inl">${timed?"Time goal":"Rep goal"}<select data-tgt="1">${opts(timed?TIME_TARGETS:TARGETS,e.target)}</select></label></div>`;
@@ -799,6 +810,29 @@ $("dayBox").addEventListener("change",ev=>{
   if(el.dataset.c){e[el.dataset.c]=Number(el.value)||0;renderAll();persist(id);return}
   if(el.dataset.note){e.notes=el.value.trim();persist(id);return}
 });
+/* ---------- repeat last week's exercises ---------- */
+const ready={log:false,days:false,settings:false};
+function sourceDay(date){for(let k=1;k<=4;k++){const d=addDays(date,-7*k);if(st.log.some(e=>e.date===d&&hasWork(e)))return d}return null}
+function copyFrom(src,date){
+  const ex=st.log.filter(e=>e.date===src&&hasWork(e)).sort((a,b)=>exRank(a)-exRank(b)||(a.ts||0)-(b.ts||0));
+  const have=new Set(st.log.filter(e=>e.date===date).map(e=>e.exercise));const t0=Date.now();const out=[];
+  ex.forEach((x,k)=>{if(have.has(x.exercise))return;have.add(x.exercise);
+    const e={id:uid(),date,type:x.type,part:x.part||partOf(x.exercise),exercise:x.exercise,ts:t0+k,notes:""};
+    if(e.type==="Cardio"){e.minutes=0;e.distance=0}else{e.target=x.target||defTarget(x.exercise);e.unit=unit();e.setList=[];e.warmups=[];e.sets=0;e.reps=0;e.weight=0}
+    st.log.push(e);out.push(e)});
+  return out;
+}
+function markSeeded(d){st.days[d]=Object.assign({},st.days[d]||{},{seeded:true});persistDay(d)}
+function maybeSeed(){
+  if(!(ready.log&&ready.days&&ready.settings)||st.ro)return;const d=today();
+  if(st.day!==d||st.settings.autoRepeat===false)return;const D=st.days[d];if(D&&D.seeded)return;
+  if(st.log.some(e=>e.date===d))return;const src=sourceDay(d);if(!src)return;
+  const list=copyFrom(src,d);markSeeded(d);list.forEach(e=>persist(e.id));
+  if(list.length)setTimeout(()=>toast(`Started with ${list.length} exercise${list.length===1?"":"s"} from ${longD(src)}`),300);
+}
+$("dayBox").addEventListener("click",ev=>{const b=ev.target.closest("[data-copy]");if(!b||!canEdit())return;
+  const list=copyFrom(b.dataset.copy,st.day);markSeeded(st.day);renderAll();list.forEach(e=>persist(e.id));toast(`Added ${list.length} exercise${list.length===1?"":"s"} from ${longD(b.dataset.copy)}`)},true);
+$("autoRep").onchange=async()=>{if(!canEdit()){renderProfile();return}st.settings.autoRepeat=$("autoRep").checked;await guard(saveSettings,"autoStatus",$("autoRep").checked?"On":"Off");renderAll()};
 /* ---------- finish workout ---------- */
 function renderFinish(){
   const items=dayItems();const box=$("finishPanel");if(!items.length){box.hidden=true;return}box.hidden=false;
@@ -832,30 +866,6 @@ $("dayPrev").onclick=()=>setDay(addDays(st.day,-1));
 $("dayNext").onclick=()=>setDay(addDays(st.day,1));
 $("dayToday").onclick=()=>setDay(today());
 $("dayInput").onchange=()=>setDay($("dayInput").value);
-
-/* ---------- LOG: start from a workout ---------- */
-function startItems(v){
-  if(!v)return[];
-  if(v.startsWith("t:")){const t=TEMPLATES.find(x=>x.id===v.slice(2));return t?t.ex.map(([p,n,tg])=>({part:p,name:n,target:tg})):[]}
-  const d=v.slice(2);return st.log.filter(e=>e.date===d&&hasWork(e)).sort((a,b)=>(a.ts||0)-(b.ts||0)).map(e=>({part:e.part||partOf(e.exercise),name:e.exercise,target:e.type==="Cardio"?e.minutes:e.target}));
-}
-function renderStarts(){
-  const sel=$("startSel");const cur=sel.value;
-  const past=[...new Set(st.log.filter(e=>e.date!==st.day&&hasWork(e)).map(e=>e.date))].sort().reverse().slice(0,10);
-  let h=`<optgroup label="Suggested workouts">${TEMPLATES.map(t=>`<option value="t:${t.id}">${esc(t.name)}</option>`).join("")}</optgroup>`;
-  if(past.length)h+=`<optgroup label="Repeat a past workout">${past.map(d=>{const ex=st.log.filter(e=>e.date===d&&hasWork(e));return `<option value="d:${d}">${esc(longD(d)+": "+ex.map(e=>e.exercise).slice(0,2).join(", ")+(ex.length>2?` +${ex.length-2} more`:""))}</option>`}).join("")}</optgroup>`;
-  sel.innerHTML=h;if(cur&&[...sel.options].some(o=>o.value===cur))sel.value=cur;renderStartPreview();
-}
-function renderStartPreview(){const it=startItems($("startSel").value);
-  $("startPreview").textContent=it.map(x=>x.part==="Cardio"?`${x.name} ${x.target} min`:`${x.name} ${x.target}${/sec/.test(x.target)?"":" reps"}`).join(" · ");}
-$("startSel").onchange=renderStartPreview;
-$("startAdd").onclick=()=>{
-  if(!canEdit())return;const have=new Set(dayItems().map(e=>e.exercise));const it=startItems($("startSel").value).filter(x=>!have.has(x.name));
-  if(!it.length){toast("Those exercises are already in this workout.");return}
-  const t0=Date.now();const added=it.map((x,k)=>addExercise(x.part,x.name,x.target,t0+k));
-  Promise.all(added).then(list=>{renderAll();list.forEach(e=>persist(e.id));toast(`Added ${list.length} exercise${list.length>1?"s":""}`);
-    const first=document.querySelector(`[data-id="${CSS.escape(list[0].id)}"]`);if(first)first.scrollIntoView({behavior:"smooth",block:"start"})});
-};
 
 /* ---------- LOG: add one exercise ---------- */
 function fillPartSelect(sel,val){sel.innerHTML=PARTS.map(p=>`<option${p[0]===val?" selected":""}>${esc(p[0])}</option>`).join("")}
@@ -1199,14 +1209,14 @@ $("xRestore").onclick=async()=>{
   for(const e of d.log){const c=JSON.parse(JSON.stringify(e));const i=st.log.findIndex(x=>x.id===c.id);if(i>=0)st.log[i]=c;else st.log.push(c);persist(c.id)}
   for(const[k,v] of Object.entries(d.days||{}))if(/^\d{4}-\d{2}-\d{2}$/.test(k)&&v&&typeof v==="object"){st.days[k]=JSON.parse(JSON.stringify(v));persistDay(k)}
   if(d.settings&&typeof d.settings==="object"){const c=st.settings.custom||(st.settings.custom={});for(const[p,l] of Object.entries(d.settings.custom||{}))if(Array.isArray(l))c[p]=[...new Set([...(c[p]||[]),...l.filter(x=>typeof x==="string")])];
-    if(d.settings.unit==="kg"||d.settings.unit==="lb")st.settings.unit=d.settings.unit;guard(saveSettings,null)}
+    if(d.settings.unit==="kg"||d.settings.unit==="lb")st.settings.unit=d.settings.unit;if(typeof d.settings.autoRepeat==="boolean")st.settings.autoRepeat=d.settings.autoRepeat;guard(saveSettings,null)}
   if(d.profile&&typeof d.profile==="object"&&d.profile.wKg){st.profile=JSON.parse(JSON.stringify(d.profile));try{if(st.db&&st.uid)await st.db.doc("data/users/"+st.uid+"/profile").set(st.profile)}catch(err){handleErr(err)}}
   $("xFile").value="";st.ui={};renderAll();setStatus("xStatus",`Restored ${d.log.length} exercise${d.log.length===1?"":"s"}.`);
 };
 $("xBackup").onclick=async()=>{$("xBackup").disabled=true;try{await makeBackup()}finally{$("xBackup").disabled=false}};
 /* ---------- PROFILE ---------- */
 function renderProfile(){
-  const p=st.profile||{};const u=unit();
+  const p=st.profile||{};const u=unit();$("autoRep").checked=st.settings.autoRepeat!==false;
   if(!$("pfAct").options.length)$("pfAct").innerHTML=`<option value="">Choose…</option>`+ACTS.map(a=>`<option value="${a[0]}">${esc(a[1])}</option>`).join("");
   const a=document.activeElement;const editing=a&&a.closest&&a.closest("#pfForm");
   $("pfHImp").hidden=u==="kg";$("pfHMet").hidden=u!=="kg";$("pfHL").textContent=u==="kg"?"Height (cm)":"Height (feet and inches)";
@@ -1246,8 +1256,9 @@ window.addEventListener("hashchange",()=>go(location.hash.slice(1)));
 document.querySelector("nav.tabs").addEventListener("click",ev=>{const a=ev.target.closest("a");if(!a)return;ev.preventDefault();go(a.dataset.v);window.scrollTo({top:0})});
 $("unitSel").onchange=async()=>{st.settings.unit=$("unitSel").value;st.ui={};renderAll();await guard(saveSettings,null)};
 function renderAll(){
+  maybeSeed();
   $("unitSel").value=unit();
-  renderDay();renderStarts();refreshQuick(true);renderHistory();renderProgress();renderLibrary();renderProfile();
+  renderDay();refreshQuick(true);renderHistory();renderProgress();renderLibrary();renderProfile();
 }
 function scheduleRender(){const a=document.activeElement;
   if(a&&a.closest&&a.closest("#v-log")&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)){st.pending=true;return}renderAll()}
@@ -1257,20 +1268,20 @@ function init(){
   st.day=today();go(location.hash.slice(1)||"log");renderAll();
 }
 async function connect(){
-  if(!window.claude||!window.claude.use){showBanner("Open this page in Claude to save your workouts. Changes made here won't be kept.");return}
+  if(!window.claude||!window.claude.use){ready.log=ready.days=ready.settings=true;showBanner("Open this page in Claude to save your workouts. Changes made here won't be kept.");return}
   let db=null;try{db=await window.claude.use("db")}catch(_){}
-  if(!db){showBanner("Saving isn't available in this view. Sign in to claude.ai to keep your log.");return}
+  if(!db){ready.log=ready.days=ready.settings=true;showBanner("Saving isn't available in this view. Sign in to claude.ai to keep your log.");return}
   st.db=db;
   try{const user=await window.claude.use("user");if(user&&typeof user.can==="function"){const c=await user.can("data.write");if(c===false){st.ro=true;showBanner("You can view this log but not change it.")}}}catch(_){}
   db.collection("log").onSnapshot(s=>{
     const server=s.docs.map(d=>({id:d.id,...JSON.parse(JSON.stringify(d.data()))}));
     const local=st.log.filter(e=>pend[e.id]>0);const keep=new Set(local.map(e=>e.id));
     st.log=server.filter(e=>!(pend[e.id]>0)).concat(local).filter((e,i,a)=>!keep.has(e.id)||a.indexOf(e)===a.findIndex(x=>x.id===e.id));
-    scheduleRender()},()=>showBanner("Lost connection to your saved workouts. Reload to try again."));
+    ready.log=true;scheduleRender()},()=>showBanner("Lost connection to your saved workouts. Reload to try again."));
   try{const user=await window.claude.use("user");const id=user&&typeof user.id==="function"?await user.id():null;if(id){st.uid=id;
     db.doc("data/users/"+id+"/profile").onSnapshot(s=>{if(s.exists)st.profile=JSON.parse(JSON.stringify(s.data()));renderProfile();scheduleRender()},()=>{})}}catch(_){}
-  db.collection("days").onSnapshot(s=>{const m={};for(const d of s.docs)m[d.id]=JSON.parse(JSON.stringify(d.data()));for(const k of Object.keys(st.days))if(pendD[k]>0)m[k]=st.days[k];st.days=m;scheduleRender()},()=>{});
-  db.doc("settings/main").onSnapshot(s=>{if(s.exists){const d=s.data();st.settings={unit:d.unit||"lb",custom:JSON.parse(JSON.stringify(d.custom||{}))}}scheduleRender()},()=>{});
+  db.collection("days").onSnapshot(s=>{const m={};for(const d of s.docs)m[d.id]=JSON.parse(JSON.stringify(d.data()));for(const k of Object.keys(st.days))if(pendD[k]>0)m[k]=st.days[k];st.days=m;ready.days=true;scheduleRender()},()=>{});
+  db.doc("settings/main").onSnapshot(s=>{if(s.exists){const d=s.data();st.settings={unit:d.unit||"lb",custom:JSON.parse(JSON.stringify(d.custom||{})),autoRepeat:d.autoRepeat!==false}}ready.settings=true;scheduleRender()},()=>{});
 }
 init();connect();loadEx();
 })();
