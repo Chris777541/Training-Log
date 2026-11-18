@@ -378,6 +378,19 @@ button.primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(123,4
 .excard{transition:transform .12s ease,box-shadow .12s ease}.excard:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(0,163,224,.18)}
 .sheet-head{background:var(--g-log)}
 @media (prefers-reduced-motion:reduce){header.top{animation:none}button.primary:hover,.excard:hover{transform:none}}
+.mgroup{display:grid;gap:10px;padding:10px;border-radius:16px;border:2px solid color-mix(in srgb,var(--mc) 55%,transparent);background:color-mix(in srgb,var(--mc) 9%,transparent)}
+.mghead{display:flex;align-items:center;gap:8px;padding:2px 4px}
+.mghead b{font-family:var(--display);font-size:1.25rem;letter-spacing:.03em;text-transform:uppercase;color:var(--mc)}
+.mghead small{color:var(--muted);font-size:.78rem}
+.mgdot{width:14px;height:14px;border-radius:50%;background:var(--mc);box-shadow:0 0 0 4px color-mix(in srgb,var(--mc) 25%,transparent)}
+.mgbody{display:grid;gap:12px}
+.mgroup .day{border:2px solid color-mix(in srgb,var(--mc) 45%,var(--line));border-left:7px solid var(--mc)}
+.mgroup .day .ex-head{box-shadow:inset 0 -4px 0 var(--mc)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .mghead b{filter:brightness(1.35)}}
+:root[data-theme="dark"] .mghead b{filter:brightness(1.35)}
+.day .ex-head{grid-template-columns:1fr;gap:8px}
+.day .ex-head .hbtns{justify-content:flex-start}
+.day .ex-head h3{overflow-wrap:anywhere}
 </style>
 </head>
 <body>
@@ -737,7 +750,22 @@ function exRank(e){
   if(big||(comp&&((rr&&rr[1]<=6)||(x&&x.eq==="barbell"&&["push","pull"].includes(x.fo)))))return 0;
   return comp?1:2;
 }
-function dayItems(){return st.log.filter(e=>e.date===st.day).sort((a,b)=>exRank(a)-exRank(b)||(a.ts||0)-(b.ts||0))}
+// Keep each body part together: groups ordered by their heaviest lift (abs and cardio last), then heavy-first inside each group
+const partKey=e=>e.type==="Cardio"?"Cardio":(e.part||partOf(e.exercise));
+function dayItems(){
+  const list=st.log.filter(e=>e.date===st.day);const g={};
+  for(const e of list){const k=partKey(e);const r=exRank(e);if(!g[k])g[k]={r,ts:e.ts||0};else{g[k].r=Math.min(g[k].r,r);g[k].ts=Math.min(g[k].ts,e.ts||0)}}
+  const gr=k=>k==="Cardio"?9:k==="Core"?8:g[k].r;
+  return list.sort((a,b)=>{const ka=partKey(a),kb=partKey(b);if(ka!==kb)return gr(ka)-gr(kb)||g[ka].ts-g[kb].ts;return exRank(a)-exRank(b)||(a.ts||0)-(b.ts||0)});
+}
+function groupedCards(items){
+  let h="",cur=null;
+  items.forEach((e,i)=>{const k=partKey(e);
+    if(k!==cur){if(cur!==null)h+=`</div></section>`;cur=k;const n=items.filter(x=>partKey(x)===k).length;const done=items.filter(x=>partKey(x)===k&&x.done).length;
+      h+=`<section class="mgroup" style="--mc:var(${PARTCOLOR[k]||"--p-full"})" aria-label="${esc(k)}"><div class="mghead"><span class="mgdot"></span><b>${esc(k)}</b><small>${n} exercise${n===1?"":"s"}${done?` · ${done} complete`:""}</small></div><div class="mgbody">`}
+    h+=card(e)});
+  return h?h+`</div></section>`:"";
+}
 function renderDay(){
   const t=today();$("dayLabel").textContent=st.day===t?"Today · "+longD(st.day):longD(st.day)+", "+parse(st.day).getFullYear();
   $("dayInput").value=st.day;$("dayToday").hidden=st.day===t;
@@ -747,7 +775,7 @@ function renderDay(){
   $("daySum").innerHTML=`<div class="stat"><b>${items.length}</b><span>Exercises</span></div><div class="stat"><b>${sets}</b><span>Working sets</span></div>
     <div class="stat"><b>${fmtW(v)}</b><span>Volume (${unit()})</span></div>${(()=>{const D=st.days[st.day];if(D&&D.closed){const c=dayCalc(st.day,D.minutes);return `<div class="stat"><b>${c.kcal!==null?"≈ "+c.kcal.toLocaleString():"—"}</b><span>Calories burned</span></div>`}return `<div class="stat"><b>${mins||wu}</b><span>${mins?"Cardio minutes":"Warm-up sets done"}</span></div>`})()}`;
   const src=items.length?null:sourceDay(st.day);
-  $("dayBox").innerHTML=items.length?items.map(card).join(""):`<div class="panel empty">No exercises for this day yet. Add one below as you go.${src?`<div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-copy="${esc(src)}">Copy exercises from ${esc(longD(src))}</button></div>`:""}</div>`;
+  $("dayBox").innerHTML=items.length?groupedCards(items):`<div class="panel empty">No exercises for this day yet. Add one below as you go.${src?`<div class="row" style="justify-content:center;margin-top:10px"><button class="primary" data-copy="${esc(src)}">Copy exercises from ${esc(longD(src))}</button></div>`:""}</div>`;
   renderFinish();
 }
 /* ---------- calories (Compendium of Physical Activities METs + Schofield BMR) ---------- */
@@ -865,7 +893,7 @@ function card(e){
       else if(W===0)msg="Body-weight exercise: a few easy reps are enough to warm up.";
       else{rows=suggestWarmups(e.exercise,e.target,W).map(s=>({w:s.w,r:s.r,done:false}));if(!rows.length)msg="This weight is light enough that no warm-up sets are needed."}
       const n=rows?rows.length:0,dn=rows?rows.filter(r=>r.done).length:0;const open=!!ui.wuOpen;
-      wuHTML=`<div class="wu"><button class="wutoggle" data-act="wutoggle" aria-expanded="${open}"><span><b>Warm-up</b> ${n?`${dn} of ${n} done${saved?"":" · suggested"}`:"none needed"}</span><span aria-hidden="true">${open?"▴":"▾"}</span></button>${open?`<div class="wubody">${msg?`<p class="muted wumsg">${esc(msg)}</p>`:""}${n?`<div class="wuh"><span>Done</span><span>Weight (${unit()})</span><span>Reps</span><span style="text-align:right">%</span><span></span></div>${rows.map((s,k)=>s.done&&ui.wuEdit!==k?`<button class="wurow ro done" data-act="editwu" data-k="${k}" aria-label="Edit warm-up set ${k+1}"><span class="okmark">✓</span><span class="rov">${s.w?fmtW(s.w)+" "+unit():"Body wt"}</span><span class="rov">${s.r} reps</span><span class="pct">${W?Math.round(s.w/W*100)+"%":""}</span><span class="pen" aria-hidden="true">✎</span></button>`:`<div class="wurow${s.done?" done editing":""}" data-k="${k}"><label class="check"><input type="checkbox" data-wu="done"${s.done?" checked":""} aria-label="Warm-up set ${k+1} done"></label>${wField('data-wu="w"',s.w,`warm-up set ${k+1} weight`)}<select data-wu="r" aria-label="Warm-up set ${k+1} reps">${opts(REPS,s.r)}</select><span class="pct">${W?Math.round(s.w/W*100)+"%":""}</span><button class="icon danger" data-act="rmwu" aria-label="Remove warm-up set ${k+1}">×</button>${s.done?`<div class="editbar"><span class="muted">Editing warm-up set ${k+1}</span><button class="primary" data-act="donewu">Done</button></div>`:""}</div>`).join("")}`:""}${W?`<button class="ghost addset" data-act="addwu">+ Add a warm-up set</button>`:""}</div>`:""}</div>`;
+      wuHTML=`<div class="wu"><button class="wutoggle" data-act="wutoggle" aria-expanded="${open}"><span><b>Warm-up</b> ${n?`${dn} of ${n} done${saved?"":" · suggested"}`:W===null?"waiting for your weight":"none needed"}</span><span aria-hidden="true">${open?"▴":"▾"}</span></button>${open?`<div class="wubody">${msg?`<p class="muted wumsg">${esc(msg)}</p>`:""}${n?`<div class="wuh"><span>Done</span><span>Weight (${unit()})</span><span>Reps</span><span style="text-align:right">%</span><span></span></div>${rows.map((s,k)=>s.done&&ui.wuEdit!==k?`<button class="wurow ro done" data-act="editwu" data-k="${k}" aria-label="Edit warm-up set ${k+1}"><span class="okmark">✓</span><span class="rov">${s.w?fmtW(s.w)+" "+unit():"Body wt"}</span><span class="rov">${s.r} reps</span><span class="pct">${W?Math.round(s.w/W*100)+"%":""}</span><span class="pen" aria-hidden="true">✎</span></button>`:`<div class="wurow${s.done?" done editing":""}" data-k="${k}"><label class="check"><input type="checkbox" data-wu="done"${s.done?" checked":""} aria-label="Warm-up set ${k+1} done"></label>${wField('data-wu="w"',s.w,`warm-up set ${k+1} weight`)}<select data-wu="r" aria-label="Warm-up set ${k+1} reps">${opts(REPS,s.r)}</select><span class="pct">${W?Math.round(s.w/W*100)+"%":""}</span><button class="icon danger" data-act="rmwu" aria-label="Remove warm-up set ${k+1}">×</button>${s.done?`<div class="editbar"><span class="muted">Editing warm-up set ${k+1}</span><button class="primary" data-act="donewu">Done</button></div>`:""}</div>`).join("")}`:""}${W?`<button class="ghost addset" data-act="addwu">+ Add a warm-up set</button>`:""}</div>`:""}</div>`;
     }
     let main=0;
     const rows=sets.map((s,k)=>{const lab=s.drop?"↳":String(++main);
