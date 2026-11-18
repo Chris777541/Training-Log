@@ -745,17 +745,18 @@ const findE=id=>st.log.find(x=>x.id===id);
 function exRank(e){
   if(e.type==="Cardio")return 4;const x=EXBY[e.exercise];
   if(isTimed(e)||(e.part||"")==="Core"||(x&&x.pm.includes("abdominals")))return 3;
-  const rr=repRange(e.target);const big=BENCHLIKE.has(e.exercise)||SQUATLIKE.has(e.exercise)||DEADLIKE.has(e.exercise)||HEAVY.has(e.exercise);
+  const rr=repRange(e.target);if(BENCHLIKE.has(e.exercise)||SQUATLIKE.has(e.exercise)||DEADLIKE.has(e.exercise))return 0;const big=HEAVY.has(e.exercise);
   const comp=UPPER_BIG.has(e.exercise)||LOWER_BIG.has(e.exercise)||isCompound(e.exercise);
-  if(big||(comp&&((rr&&rr[1]<=6)||(x&&x.eq==="barbell"&&["push","pull"].includes(x.fo)))))return 0;
+  if(big||(comp&&((rr&&rr[1]<=6)||(x&&x.eq==="barbell"&&["push","pull"].includes(x.fo)))))return 0.5;
   return comp?1:2;
 }
-// Keep each body part together: groups ordered by their heaviest lift (abs and cardio last), then heavy-first inside each group
+// Keep each body part together: legs first (quads, hamstrings & glutes, calves), then other groups by their heaviest lift, abs and cardio last; heavy-first inside each group
 const partKey=e=>e.type==="Cardio"?"Cardio":(e.part||partOf(e.exercise));
 function dayItems(){
   const list=st.log.filter(e=>e.date===st.day);const g={};
   for(const e of list){const k=partKey(e);const r=exRank(e);if(!g[k])g[k]={r,ts:e.ts||0};else{g[k].r=Math.min(g[k].r,r);g[k].ts=Math.min(g[k].ts,e.ts||0)}}
-  const gr=k=>k==="Cardio"?9:k==="Core"?8:g[k].r;
+  const LEGS={"Quads":-3,"Hamstrings & glutes":-2,"Calves":-1};
+  const gr=k=>k==="Cardio"?9:k==="Core"?8:k in LEGS?LEGS[k]:g[k].r;
   return list.sort((a,b)=>{const ka=partKey(a),kb=partKey(b);if(ka!==kb)return gr(ka)-gr(kb)||g[ka].ts-g[kb].ts;return exRank(a)-exRank(b)||(a.ts||0)-(b.ts||0)});
 }
 function groupedCards(items){
