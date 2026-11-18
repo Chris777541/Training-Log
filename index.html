@@ -297,6 +297,8 @@ nav.tabs{grid-template-columns:repeat(4,1fr)}
 .watch{display:grid;gap:8px;padding:10px 12px;border-radius:12px;background:linear-gradient(135deg,color-mix(in srgb,#FF3D77 10%,var(--surface)),color-mix(in srgb,#2B5BFF 10%,var(--surface)));border:1px solid color-mix(in srgb,#FF3D77 25%,var(--line))}
 .whead{display:grid;gap:2px;font-size:.84rem}.whead b{font-family:var(--display);font-size:1.05rem;letter-spacing:.02em}
 .wform{align-items:end}.wform button{width:100%}.wmsg{margin:0;font-size:.8rem;min-height:0}.wmsg:empty{display:none}
+.dstats .stat{--c:var(--accent)}
+#dailyPanel{--pc:#E5243B!important}
 .seg{display:flex;gap:4px}.seg .chip[aria-pressed="true"]{background:var(--p-core);border-color:var(--p-core);color:#fff}
 .fateq{display:grid;gap:6px}.fateq div{display:grid;grid-template-columns:80px 1fr;gap:8px;font-size:.86rem;padding:8px 10px;border-radius:10px;background:color-mix(in srgb,var(--p-core) 10%,var(--surface))}
 .fateq b{font-family:var(--display);text-transform:uppercase;letter-spacing:.04em;color:var(--p-core)}
@@ -415,6 +417,7 @@ button.primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(123,4
       <div class="stats" id="daySum"></div>
       <div class="tip"><b>Before you lift</b> 5–10 minutes of easy cardio (bike, rower or incline walk) to warm up your body. Then do the warm-up sets shown for each exercise.</div>
     </div>
+    <div class="panel" id="dailyPanel"></div>
 
 
     <div id="dayBox" style="display:grid;gap:14px"></div>
@@ -446,6 +449,12 @@ button.primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(123,4
       <div class="backup"><div><b>Backup</b><span class="muted">Everything in one file: workouts, profile and your own exercises. Your log lives only on this phone, so back up now and then and keep the file in iCloud Drive or Files.</span></div>
         <div class="row"><button id="xBackup">Back up everything</button><label class="filebtn">Restore from backup<input type="file" id="xFile" accept=".json,application/json"></label><button class="primary" id="xRestore" hidden>Restore now</button></div></div>
       <div class="status" id="xStatus"></div>
+    </div>
+    <div class="panel">
+      <div class="spread"><div><div class="eyebrow">⌚ Last 14 days</div><h2>Daily activity</h2></div>
+        <div class="seg" role="group" aria-label="Daily measure"><button class="chip" data-dv="steps" aria-pressed="true">Steps</button><button class="chip" data-dv="active" aria-pressed="false">Active cal</button><button class="chip" data-dv="hr" aria-pressed="false">Heart rate</button></div></div>
+      <div class="stats" id="dStats"></div>
+      <div class="chart" id="cDaily"></div>
     </div>
     <div class="panel">
       <div class="spread"><div><div class="eyebrow">Finished workouts</div><h2>Calories burned</h2></div>
@@ -955,6 +964,51 @@ function maybeSeed(){
 $("dayBox").addEventListener("click",ev=>{const b=ev.target.closest("[data-copy]");if(!b||!canEdit())return;
   const list=copyFrom(b.dataset.copy,st.day);markSeeded(st.day);renderAll();list.forEach(e=>persist(e.id));toast(`Added ${list.length} exercise${list.length===1?"":"s"} from ${longD(b.dataset.copy)}`)},true);
 $("autoRep").onchange=async()=>{if(!canEdit()){renderProfile();return}st.settings.autoRepeat=$("autoRep").checked;await guard(saveSettings,"autoStatus",$("autoRep").checked?"On":"Off");renderAll()};
+/* ---------- DAILY ACTIVITY (whole-day watch data via Apple Health) ---------- */
+function parseDaily(t){t=String(t||"");if(!/steps\s*=|day\s*=\s*1/i.test(t))return null;
+  const g=k=>{const m=t.match(new RegExp("(?:^|[;\\s])"+k+"\\s*=\\s*([0-9][0-9.,]*)","i"));return m?Number(m[1].replace(/,(?=\d{3}\b)/g,"").replace(",",".")):null};
+  const steps=g("steps"),active=g("kcal"),hr=g("hr");
+  const d={steps:steps&&steps>0&&steps<200000?Math.round(steps):null,active:active&&active>0&&active<10000?Math.round(active):null,hr:hr&&hr>25&&hr<230?Math.round(hr):null};
+  return d.steps||d.active||d.hr?d:null}
+function saveDaily(d,src){if(!canEdit())return;const D=st.days[st.day]||{};st.days[st.day]=Object.assign({},D,{daily:Object.assign({src,at:Date.now()},d)});persistDay(st.day);st.dOpen=false;renderAll();
+  toast(`Daily activity saved${d.steps?` · ${d.steps.toLocaleString()} steps`:""}`)}
+function renderDaily(){
+  const box=$("dailyPanel");const D=(st.days[st.day]||{}).daily;const b=bmr(st.profile);
+  const tile=(v,l,c)=>`<div class="stat" style="--c:${c}"><b>${v}</b><span>${l}</span></div>`;
+  box.innerHTML=`<div class="spread"><div><div class="eyebrow">⌚ From your watch</div><h2>Daily activity</h2></div>${D?`<span class="muted" style="font-size:.76rem">Updated ${hm(D.at)}${D.src?` · ${esc(D.src)}`:""}</span>`:""}</div>
+    ${D?`<div class="stats dstats">${tile(D.steps!=null?D.steps.toLocaleString():"—","Steps","#2B5BFF")}${tile(D.active!=null?D.active.toLocaleString():"—","Active calories","#FF6A2B")}
+      ${tile(D.active!=null&&b?Math.round(b+D.active).toLocaleString():"—",b?"Total calories today":"Total (add profile)","#C2185B")}${tile(D.hr!=null?D.hr:"—","Avg heart rate (bpm)","#E5243B")}</div>
+      <p class="muted" style="margin:0;font-size:.78rem">Total = your resting calories for the day plus active calories. Active calories already include your workout, so they're shown separately from workout calories.</p>`
+    :`<p class="muted" style="margin:0;font-size:.85rem">Run your "Daily activity" Shortcut in the evening, then tap Paste to bring in today's steps, active calories and heart rate from Apple Health.</p>`}
+    <div class="row"><button class="primary" id="dPaste">Paste from Apple Health</button><button class="ghost" id="dManual">${st.dOpen?"Hide":"Type them in"}</button>${D?`<button class="ghost danger" id="dClear">${st.confirm==="daily"?"Tap again to clear":"Clear"}</button>`:""}</div>
+    ${st.dOpen?`<div class="grid3"><label>Steps<input id="dSteps" type="number" inputmode="numeric" min="0" value="${D&&D.steps!=null?D.steps:""}"></label><label>Active calories<input id="dKcal" type="number" inputmode="numeric" min="0" value="${D&&D.active!=null?D.active:""}"></label><label>Avg heart rate<input id="dHr" type="number" inputmode="numeric" min="25" max="230" value="${D&&D.hr!=null?D.hr:""}"></label></div>
+      <label>Or paste the text your Shortcut copied<input id="dText" placeholder="TL1;day=1;steps=8450;kcal=520;hr=76" autocomplete="off"></label><div class="row"><button class="primary" id="dSave">Save</button></div>`:""}
+    <p class="muted wmsg" id="dMsg"></p>`;
+}
+$("dailyPanel").addEventListener("click",async ev=>{const b=ev.target.closest("button");if(!b)return;
+  if(b.id==="dManual"){st.dOpen=!st.dOpen;renderDaily();return}
+  if(b.id==="dClear"){if(st.confirm!=="daily"){st.confirm="daily";renderDaily();return}st.confirm=null;if(!canEdit())return;const D=st.days[st.day];if(D){delete D.daily;persistDay(st.day)}renderAll();return}
+  if(b.id==="dSave"){const n=id=>{const v=$(id).value;return v===""?null:Number(v)};const d={steps:n("dSteps"),active:n("dKcal"),hr:n("dHr")};
+    if(d.steps==null&&d.active==null&&d.hr==null){$("dMsg").textContent="Enter at least one number.";return}saveDaily(d,"typed in");return}
+  if(b.id==="dPaste"){let t="";try{t=await navigator.clipboard.readText()}catch(_){}
+    const d=parseDaily(t);if(d){saveDaily(d,"Apple Health");return}
+    st.dOpen=true;renderDaily();$("dMsg").textContent=t?"That copied text isn't from the Daily activity Shortcut. Run it again, or type the numbers in.":"Couldn't read the clipboard here. Paste the Shortcut's text into the box below, or type the numbers in.";}
+});
+$("dailyPanel").addEventListener("input",ev=>{if(ev.target.id==="dText"){const d=parseDaily(ev.target.value);if(d)saveDaily(d,"Apple Health")}});
+/* progress chart */
+function renderDailyChart(){
+  const days=Array.from({length:14},(_,i)=>addDays(today(),i-13));const view=st.dView||"steps";
+  for(const b of document.querySelectorAll("[data-dv]"))b.setAttribute("aria-pressed",String(b.dataset.dv===view));
+  const val=d=>{const x=(st.days[d]||{}).daily;if(!x)return 0;return view==="steps"?x.steps||0:view==="active"?x.active||0:x.hr||0};
+  const vals=days.map(val);const have=vals.filter(v=>v>0);
+  if(!Object.values(st.days).some(D=>D&&D.daily)){$("dStats").innerHTML="";$("cDaily").innerHTML=`<div class="empty">Your daily steps, active calories and heart rate appear here once you paste them on the Log tab.</div>`;return}
+  const fmt=v=>Math.round(v).toLocaleString();const avg=have.length?have.reduce((a,v)=>a+v,0)/have.length:0;
+  const unitW={steps:"steps",active:"active calories",hr:"bpm"}[view];
+  $("dStats").innerHTML=`<div class="stat"><b>${have.length?fmt(avg):"—"}</b><span>Daily average, ${unitW}</span></div><div class="stat"><b>${have.length?fmt(Math.max(...have)):"—"}</b><span>${view==="hr"?"Highest day":"Best day"}</span></div>
+    <div class="stat"><b>${have.length}</b><span>Days recorded</span></div><div class="stat"><b>${view==="steps"?fmt(have.reduce((a,v)=>a+v,0)):view==="active"?fatShort(have.reduce((a,v)=>a+v,0)):have.length?fmt(Math.min(...have)):"—"}</b><span>${view==="steps"?"Total steps":view==="active"?"Body fat equivalent":"Lowest day"}</span></div>`;
+  vbars($("cDaily"),{labels:days.map(d=>{const x=parse(d);return (x.getMonth()+1)+"/"+x.getDate()}),series:[{name:unitW,values:vals,color:view==="steps"?"#2B5BFF":view==="active"?"#FF6A2B":"#E5243B"}],fmt,emptyMsg:"No days recorded in the last two weeks."});
+}
+
 /* ---------- finish workout ---------- */
 function timedSpan(date){
   const pts=[];for(const e of st.log.filter(x=>x.date===date)){
@@ -992,6 +1046,7 @@ $("finishPanel").addEventListener("click",async ev=>{
   if(b.id==="wSave"){const a=Number($("wKcal").value),h=Number($("wHr").value);if(!(a>0&&a<5000)){$("wMsg").textContent="Enter your watch's active calories for this workout.";return}
     saveWatch({active:Math.round(a),hr:h>30&&h<230?Math.round(h):null,min:null},"typed in");return}
   if(b.id==="wPaste"){let t="";try{t=await navigator.clipboard.readText()}catch(_){}
+    if(parseDaily(t)){toast("That's your daily activity. Paste it in the Daily activity section at the top of the Log.",true);return}
     const w=parseWatch(t);if(w){saveWatch(w,"Apple Health");return}
     st.wOpen=true;renderFinish();$("wMsg").textContent=t?"That copied text isn't from the Training Log Shortcut. Run the Shortcut again, or type the numbers in.":"Couldn't read the clipboard here. Paste the Shortcut's text into the box below, or type the numbers in.";return}
   if(b.id==="finish"){const calc=dayCalc(st.day,st.finishMin||null);const auto=defaultLen(st.day);const minutes=st.finishMin||auto||calc.est;const sp=timedSpan(st.day);
@@ -1078,7 +1133,7 @@ function renderProgress(){
   $("cardioTable").innerHTML=cs.length?`<table><thead><tr><th>Activity</th><th class="n">Sessions</th><th class="n">Minutes</th><th class="n">Km</th><th>Last done</th></tr></thead><tbody>${cs.map(c=>`<tr><td class="wrapcell">${esc(c.name)}</td><td class="n">${c.n}</td><td class="n">${c.min}</td><td class="n">${c.km?fmtW(c.km):"—"}</td><td>${short(c.last)}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">No cardio logged yet.</div>`;
 }
 $("pEx").onchange=()=>{st.pickedEx=$("pEx").value;renderProgress()};
-$("v-progress").addEventListener("click",ev=>{const kv=ev.target.closest("[data-kv]");if(kv){st.kView=kv.dataset.kv;renderCharts();return}const g=ev.target.closest("[data-go]");if(g){ev.preventDefault();go(g.dataset.go);window.scrollTo({top:0})}});
+$("v-progress").addEventListener("click",ev=>{const dv=ev.target.closest("[data-dv]");if(dv){st.dView=dv.dataset.dv;renderDailyChart();return}const kv=ev.target.closest("[data-kv]");if(kv){st.kView=kv.dataset.kv;renderCharts();return}const g=ev.target.closest("[data-go]");if(g){ev.preventDefault();go(g.dataset.go);window.scrollTo({top:0})}});
 function niceStep(r){if(r<=0)return 5;const p=Math.pow(10,Math.floor(Math.log10(r)));const f=r/p;return (f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p}
 function drawChart(s){
   const byDate=new Map(),oneRM=new Map();for(const e of s.entries){const w=conv(e.weight,e.unit);if(!byDate.has(e.date)||w>byDate.get(e.date))byDate.set(e.date,w);const r=e1rm(e);if(!oneRM.has(e.date)||r>oneRM.get(e.date))oneRM.set(e.date,r)}
@@ -1149,6 +1204,7 @@ function renderCharts(){
     if((st.kView||"week")==="week")vbars($("cKcal"),{labels:labs,series:[{name:"Calories",values:wk,color:"var(--p-core)"}],fmt:v=>Math.round(v).toLocaleString(),emptyMsg:"Calories appear here after you finish a workout with Finish workout on the Log tab."});
     else{const ds=closed.sort().slice(-12);vbars($("cKcal"),{labels:ds.map(short),series:[{name:"Calories",values:ds.map(kOf),color:"var(--p-core)"}],fmt:v=>Math.round(v).toLocaleString(),emptyMsg:"Calories appear here after you finish a workout with Finish workout on the Log tab."})}
     if(n)$("kFat").innerHTML=`<div><b>This week</b><span>${netWeek.toLocaleString()} extra calories from exercise ≈ ${fatLong(netWeek)} of body fat</span></div><div><b>All time</b><span>${netAll.toLocaleString()} extra calories from exercise ≈ ${fatLong(netAll)} of body fat</span></div>`}
+  renderDailyChart();
   vbars($("cDone"),{labels:labs,series:[{name:"Workouts",values:weeks.map(w=>new Set(done.filter(e=>inWeek(e.date,w)).map(e=>e.date)).size),color:"var(--good)"}],fmt:v=>String(Math.round(v)),emptyMsg:"The number of days you trained each week appears here."});
   hbars($("cParts"),{rows:PARTS.filter(p=>p[0]!=="Cardio").map(([p,c])=>({label:p,value:thisL.filter(e=>(e.part||partOf(e.exercise))===p).reduce((a,e)=>a+mainSets(e).length,0),color:`var(${c})`})),target:10,fmt:v=>String(v),emptyMsg:"Log a lifting workout this week to see how many sets each body part got."});
   vbars($("cCardio"),{labels:labs,series:[{name:"Minutes",values:weeks.map(w=>card.filter(e=>inWeek(e.date,w)).reduce((a,e)=>a+(Number(e.minutes)||0),0)),color:"var(--p-cardio)"}],fmt:v=>String(Math.round(v)),emptyMsg:"Cardio minutes per week appear here once you log a cardio session."});
@@ -1437,7 +1493,7 @@ $("unitSel").onchange=async()=>{st.settings.unit=$("unitSel").value;st.ui={};ren
 function renderAll(){
   maybeSeed();
   $("unitSel").value=unit();
-  renderDay();refreshQuick(true);renderHistory();renderProgress();renderLibrary();renderProfile();
+  renderDay();renderDaily();refreshQuick(true);renderHistory();renderProgress();renderLibrary();renderProfile();
 }
 function scheduleRender(){const a=document.activeElement;
   if(a&&a.closest&&a.closest("#v-log")&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)){st.pending=true;return}renderAll()}
