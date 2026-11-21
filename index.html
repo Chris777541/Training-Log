@@ -391,6 +391,19 @@ button.primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(123,4
 .day .ex-head{grid-template-columns:1fr;gap:8px}
 .day .ex-head .hbtns{justify-content:flex-start}
 .day .ex-head h3{overflow-wrap:anywhere}
+.timerbar{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px;padding:6px 8px 6px 14px;border-radius:14px;color:#fff;background:linear-gradient(115deg,#1B2230,#2C3546);box-shadow:0 6px 16px rgba(0,0,0,.18)}
+.timerbar.z1{background:linear-gradient(115deg,#00A86B,#00B3A1)}
+.timerbar.z2{background:linear-gradient(115deg,#FF9500,#FF6A2B)}
+.timerbar.z3{background:linear-gradient(115deg,#E5243B,#C2185B)}
+.timerbar.paused{background:linear-gradient(115deg,#5D6877,#454E5C)}
+.timerbar.idle{background:linear-gradient(115deg,#2B5BFF,#7B2FF7);opacity:.92}
+.tmmain{display:grid;line-height:1;min-width:0}
+.tmlabel{font-size:.72rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tmtime{font-family:var(--display);font-weight:700;font-size:2.7rem;letter-spacing:.02em;font-variant-numeric:tabular-nums;line-height:1.05}
+.tmbtns{display:flex;gap:6px;flex:none}
+.tmbtns button{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.45);color:#fff;font-weight:700;padding:10px 14px;border-radius:10px;min-width:76px}
+.tmbtns button:disabled{opacity:.45}
+@media (max-width:400px){.tmtime{font-size:2.3rem}.tmbtns button{padding:9px 10px;min-width:64px}}
 </style>
 </head>
 <body>
@@ -413,6 +426,10 @@ button.primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(123,4
     <a href="#progress" data-v="progress">Progress</a>
     <a href="#library" data-v="library">Library</a>
     <a href="#profile" data-v="profile">Profile</a>
+    <div class="timerbar idle" id="timerbar" role="timer" aria-live="off">
+      <div class="tmmain"><span class="tmlabel" id="tmLabel">Rest timer</span><span class="tmtime" id="tmTime">00:00</span></div>
+      <div class="tmbtns"><button id="tmPause">Start</button><button id="tmReset">Reset</button></div>
+    </div>
   </nav>
 
   <div id="banner" class="banner" hidden></div>
@@ -750,13 +767,13 @@ function exRank(e){
   if(big||(comp&&((rr&&rr[1]<=6)||(x&&x.eq==="barbell"&&["push","pull"].includes(x.fo)))))return 0.5;
   return comp?1:2;
 }
-// Keep each body part together: legs first (quads, hamstrings & glutes, calves), then other groups by their heaviest lift, abs and cardio last; heavy-first inside each group
+// Keep each body part together: chest, back, shoulders, then legs (quads, hamstrings & glutes, calves), then other groups by their heaviest lift, abs and cardio last; heavy-first inside each group
 const partKey=e=>e.type==="Cardio"?"Cardio":(e.part||partOf(e.exercise));
 function dayItems(){
   const list=st.log.filter(e=>e.date===st.day);const g={};
   for(const e of list){const k=partKey(e);const r=exRank(e);if(!g[k])g[k]={r,ts:e.ts||0};else{g[k].r=Math.min(g[k].r,r);g[k].ts=Math.min(g[k].ts,e.ts||0)}}
-  const LEGS={"Quads":-3,"Hamstrings & glutes":-2,"Calves":-1};
-  const gr=k=>k==="Cardio"?9:k==="Core"?8:k in LEGS?LEGS[k]:g[k].r;
+  const FIXED={"Chest":-9,"Back":-8,"Shoulders":-7,"Quads":-6,"Hamstrings & glutes":-5,"Calves":-4};
+  const gr=k=>k==="Cardio"?9:k==="Core"?8:k in FIXED?FIXED[k]:g[k].r;
   return list.sort((a,b)=>{const ka=partKey(a),kb=partKey(b);if(ka!==kb)return gr(ka)-gr(kb)||g[ka].ts-g[kb].ts;return exRank(a)-exRank(b)||(a.ts||0)-(b.ts||0)});
 }
 function groupedCards(items){
@@ -942,7 +959,7 @@ $("dayBox").addEventListener("click",async ev=>{
     normalizeUnit(e);const set={w:Number(w),r,t:Date.now()};if(drop)set.drop=true;e.setList=(e.setList||[]).concat([set]);finalize(e);
     u.next=null;u.wuOpen=false;u.edit=null;u.wuEdit=null;st.confirm=null;
     if(drop){u.next={w:Number(w)?roundW(Number(w)*0.8):0,r}}
-    renderAll();persist(id);toast(drop?`${e.exercise}: drop set logged`:`${e.exercise}: set ${mainSets(e).length} logged`);return}
+    renderAll();persist(id);timerStart(drop?`${e.exercise} drop set`:`${e.exercise} set ${mainSets(e).length}`);toast(drop?`${e.exercise}: drop set logged`:`${e.exercise}: set ${mainSets(e).length} logged`);return}
   if(act==="rmset"){const k=Number(btn.closest(".setrow").dataset.k);const key="set:"+id+":"+k;if(st.confirm!==key){st.confirm=key;renderDay();return}
     st.confirm=null;normalizeUnit(e);e.setList.splice(k,1);if(e.setList[k]&&e.setList[k].drop&&(k===0||!e.setList[k-1]))delete e.setList[k].drop;finalize(e);if(ui){ui.next=null;ui.edit=null;if(!e.setList.length)ui.drop=false}renderAll();persist(id);return}
   if(act==="addwu"){materialize(e);const l=e.warmups[e.warmups.length-1];const bar=unit()==="kg"?20:45;e.warmups.push({w:l?l.w:bar,r:l?Math.max(1,l.r-2):5,done:false});uiOf(e).wuOpen=true;renderDay();persist(id);return}
@@ -966,6 +983,7 @@ $("dayBox").addEventListener("change",ev=>{
   if(el.dataset.s){const k=Number(el.closest(".setrow").dataset.k);normalizeUnit(e);const s=e.setList[k];if(!s)return;const v=el.value===""?0:Number(el.value);if(isNaN(v)||v<0){renderDay();return}s[el.dataset.s]=v;finalize(e);if(st.ui[id])st.ui[id].next=null;renderAll();persist(id);return}
   if(el.dataset.wu){const k=Number(el.closest(".wurow").dataset.k);materialize(e);const s=e.warmups[k];if(!s)return;
     if(el.dataset.wu==="done"){s.done=el.checked;if(el.checked){s.t=Date.now();uiOf(e).wuEdit=null}else delete s.t}else{const v=el.value===""?0:Number(el.value);if(!isNaN(v)&&v>=0)s[el.dataset.wu]=v}renderDay();persist(id);
+    if(el.dataset.wu==="done"&&el.checked)timerStart(`${e.exercise} warm-up ${k+1}`);
     if(el.dataset.wu==="done"&&el.checked&&e.warmups.every(w=>w.done))toast("Warm-up done. Time for working sets.");return}
   if(el.dataset.c){e[el.dataset.c]=Number(el.value)||0;if(el.dataset.c==="minutes"&&e.minutes)e.ct=Date.now();renderAll();persist(id);return}
   if(el.dataset.note){e.notes=el.value.trim();persist(id);return}
@@ -1509,13 +1527,42 @@ $("pfSave").onclick=async()=>{
   try{if(st.db&&st.uid)await st.db.doc("data/users/"+st.uid+"/profile").set(st.profile);setStatus("pfStatus",st.db&&st.uid?"Saved":"Saved for this visit only");}catch(err){handleErr(err)}
   $("pfSave").blur();renderAll();
 };
+/* ---------- REST TIMER (counts up from the last logged set) ---------- */
+const TM_KEY="tl-rest-timer";
+let tm={start:null,acc:0,running:false,label:""};
+try{const v=JSON.parse(localStorage.getItem(TM_KEY)||"null");if(v&&typeof v==="object")tm=Object.assign(tm,v)}catch(_){}
+function tmSave(){try{localStorage.setItem(TM_KEY,JSON.stringify(tm))}catch(_){}}
+const tmElapsed=()=>tm.acc+(tm.running&&tm.start?Date.now()-tm.start:0);
+function tmFmt(ms){const s=Math.max(0,Math.floor(ms/1000));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?h+":"+String(m).padStart(2,"0"):String(m).padStart(2,"0"))+":"+String(x).padStart(2,"0")}
+function timerStart(label){tm={start:Date.now(),acc:0,running:true,label:label||""};tmSave();tmPaint(true)}
+function tmPause(){if(!tm.running)return;tm.acc=tmElapsed();tm.running=false;tm.start=null;tmSave();tmPaint(true)}
+function tmResume(){if(tm.running)return;tm.start=Date.now();tm.running=true;tmSave();tmPaint(true)}
+function tmReset(){tm={start:null,acc:0,running:false,label:""};tmSave();tmPaint(true)}
+function tmPaint(full){
+  const bar=$("timerbar");if(!bar)return;const ms=tmElapsed();const s=ms/1000;const idle=!tm.running&&!tm.acc;
+  bar.hidden=idle&&$("v-log").hidden;
+  bar.classList.toggle("idle",idle);bar.classList.toggle("paused",!tm.running&&!idle);
+  bar.classList.toggle("z1",tm.running&&s<90);bar.classList.toggle("z2",tm.running&&s>=90&&s<180);bar.classList.toggle("z3",tm.running&&s>=180);
+  $("tmTime").textContent=tmFmt(ms);
+  if(full){
+    $("tmLabel").textContent=idle?"Rest timer · starts when you log a set":tm.running?(tm.label?`Rest since ${tm.label}`:"Resting"):"Paused";
+    $("tmPause").textContent=tm.running?"Pause":idle?"Start":"Resume";
+    $("tmPause").setAttribute("aria-label",tm.running?"Pause timer":idle?"Start timer":"Resume timer");
+    $("tmReset").disabled=idle;
+  }
+}
+$("tmPause").onclick=()=>{if(tm.running)tmPause();else tmResume()};
+$("tmReset").onclick=tmReset;
+setInterval(()=>tmPaint(false),250);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)tmPaint(true)});
+
 /* ---------- shell ---------- */
 function showBanner(t){$("banner").textContent=t;$("banner").hidden=false}
 function go(v){if(!["log","progress","library","profile"].includes(v))v="log";const was=!$("v-"+v).hidden;
   for(const a of document.querySelectorAll("nav.tabs a"))a.setAttribute("aria-current",a.dataset.v===v?"page":"false");
   for(const s of document.querySelectorAll("section.view"))s.hidden=s.id!=="v-"+v;
   if(location.hash!=="#"+v)try{history.replaceState(null,"","#"+v)}catch(_){}
-  if(v==="library"&&!was)renderLibrary()}
+  if(v==="library"&&!was)renderLibrary();if(typeof tmPaint==="function"&&$("timerbar"))tmPaint(true)}
 window.addEventListener("hashchange",()=>go(location.hash.slice(1)));
 document.querySelector("nav.tabs").addEventListener("click",ev=>{const a=ev.target.closest("a");if(!a)return;ev.preventDefault();go(a.dataset.v);window.scrollTo({top:0})});
 $("unitSel").onchange=async()=>{st.settings.unit=$("unitSel").value;st.ui={};renderAll();await guard(saveSettings,null)};
@@ -1529,7 +1576,7 @@ function scheduleRender(){const a=document.activeElement;
 document.addEventListener("focusout",()=>{if(st.pending)setTimeout(()=>{if(!st.pending)return;const a=document.activeElement;if(a&&a.closest&&a.closest("#v-log")&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName))return;st.pending=false;renderAll()},60)});
 function init(){
   fillPartSelect($("qPart"),"Chest");fillPartSelect($("lPart"),"Chest");
-  st.day=today();go(location.hash.slice(1)||"log");renderAll();
+  st.day=today();go(location.hash.slice(1)||"log");renderAll();tmPaint(true);
 }
 async function connect(){
   if(!window.claude||!window.claude.use){ready.log=ready.days=ready.settings=true;showBanner("Open this page in Claude to save your workouts. Changes made here won't be kept.");return}
