@@ -974,7 +974,7 @@ $("dayBox").addEventListener("change",ev=>{
   if(el.classList.contains("wpick")){const inp=el.parentElement.querySelector("input");if(inp)inp.value=el.value}
   if(el.dataset.done){if(!canEdit()){renderDay();return}e.done=el.checked;st.confirm=null;
     if(!e.done&&st.days[e.date]&&st.days[e.date].closed){st.days[e.date].closed=false;persistDay(e.date)}
-    renderAll();persist(id);if(e.done){const k=exKcal(e);toast(`${e.exercise} complete${k!==null?` · ≈ ${k} calories`:""}`)}return}
+    renderAll();persist(id);if(e.done){tmReset();const k=exKcal(e);toast(`${e.exercise} complete${k!==null?` · ≈ ${k} calories`:""}`)}return}
   if(e.done){renderDay();return}
   if(el.dataset.nx){const u=uiOf(e,coach(e));u.next[el.dataset.nx]=el.value===""?"":Number(el.value);
     if(el.dataset.nx==="w"&&el.classList.contains("wpick")&&!(e.warmups||[]).length&&!(e.setList||[]).length)refreshWU(e,cardEl);return}
@@ -1099,7 +1099,7 @@ $("finishPanel").addEventListener("click",async ev=>{
   if(b.id==="finish"){const calc=dayCalc(st.day,st.finishMin||null);const auto=defaultLen(st.day);const minutes=st.finishMin||auto||calc.est;const sp=timedSpan(st.day);
     for(const e of dayItems())if(!e.done){e.done=true;persist(e.id)}
     st.days[st.day]=Object.assign({},st.days[st.day]||{},{closed:true,minutes,ts:Date.now(),manual:!!st.finishMin,start:sp?sp.start:null,end:sp?sp.end:null});st.finishMin=null;persistDay(st.day);renderAll();
-    const k=dayCalc(st.day,minutes).kcal;toast(k!==null?`Workout complete · ≈ ${k} calories`:"Workout complete");window.scrollTo({top:0,behavior:"smooth"});return}
+    tmReset();const k=dayCalc(st.day,minutes).kcal;toast(k!==null?`Workout complete · ≈ ${k} calories`:"Workout complete");window.scrollTo({top:0,behavior:"smooth"});return}
   if(b.id==="reopen"){const D=st.days[st.day];if(D){D.closed=false;st.finishMin=D.manual?D.minutes:null;persistDay(st.day)}renderAll();toast("Workout reopened. Untick Complete on an exercise to edit it.")}
 });
 $("finishPanel").addEventListener("input",ev=>{if(ev.target.id==="wText"){const w=parseWatch(ev.target.value);if(w)saveWatch(w,"Apple Health")}});
