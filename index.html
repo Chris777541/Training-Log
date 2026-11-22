@@ -404,6 +404,8 @@ button.primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(123,4
 .tmbtns button{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.45);color:#fff;font-weight:700;padding:10px 14px;border-radius:10px;min-width:76px}
 .tmbtns button:disabled{opacity:.45}
 @media (max-width:400px){.tmtime{font-size:2.3rem}.tmbtns button{padding:9px 10px;min-width:64px}}
+.panel>*{min-width:0}#kList{min-width:0}
+.klist td b{color:var(--p-core)}.wtag{font-size:.8rem}
 </style>
 </head>
 <body>
@@ -488,10 +490,11 @@ button.primary:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(123,4
     </div>
     <div class="panel">
       <div class="spread"><div><div class="eyebrow">Finished workouts</div><h2>Calories burned</h2></div>
-        <div class="seg" role="group" aria-label="Chart view"><button class="chip" data-kv="week" aria-pressed="true">By week</button><button class="chip" data-kv="workout" aria-pressed="false">By workout</button></div></div>
+        <div class="seg" role="group" aria-label="Chart view"><button class="chip" data-kv="day" aria-pressed="true">By day</button><button class="chip" data-kv="week" aria-pressed="false">By week</button><button class="chip" data-kv="workout" aria-pressed="false">By workout</button></div></div>
       <div class="stats" id="kStats"></div>
       <div class="chart" id="cKcal"></div>
       <div class="fateq" id="kFat"></div>
+      <div id="kList"></div>
       <p class="muted" style="margin:0;font-size:.78rem;line-height:1.5">Counts workouts you've closed with Finish workout. The body-fat equivalent uses only the extra calories exercise burned above resting, at the common rule of about 3,500 calories per pound (7,700 per kilogram) of fat. It's a guide: real weight change depends on what you eat, and loss slows over time as your body adapts.</p>
     </div>
     <div class="panel">
@@ -1180,7 +1183,7 @@ function renderProgress(){
   $("cardioTable").innerHTML=cs.length?`<table><thead><tr><th>Activity</th><th class="n">Sessions</th><th class="n">Minutes</th><th class="n">Km</th><th>Last done</th></tr></thead><tbody>${cs.map(c=>`<tr><td class="wrapcell">${esc(c.name)}</td><td class="n">${c.n}</td><td class="n">${c.min}</td><td class="n">${c.km?fmtW(c.km):"—"}</td><td>${short(c.last)}</td></tr>`).join("")}</tbody></table>`:`<div class="empty">No cardio logged yet.</div>`;
 }
 $("pEx").onchange=()=>{st.pickedEx=$("pEx").value;renderProgress()};
-$("v-progress").addEventListener("click",ev=>{const dv=ev.target.closest("[data-dv]");if(dv){st.dView=dv.dataset.dv;renderDailyChart();return}const kv=ev.target.closest("[data-kv]");if(kv){st.kView=kv.dataset.kv;renderCharts();return}const g=ev.target.closest("[data-go]");if(g){ev.preventDefault();go(g.dataset.go);window.scrollTo({top:0})}});
+$("v-progress").addEventListener("click",ev=>{const ka=ev.target.closest("[data-kall]");if(ka){st.kAll=!st.kAll;renderCharts();return}const dv=ev.target.closest("[data-dv]");if(dv){st.dView=dv.dataset.dv;renderDailyChart();return}const kv=ev.target.closest("[data-kv]");if(kv){st.kView=kv.dataset.kv;renderCharts();return}const g=ev.target.closest("[data-go]");if(g){ev.preventDefault();go(g.dataset.go);window.scrollTo({top:0})}});
 function niceStep(r){if(r<=0)return 5;const p=Math.pow(10,Math.floor(Math.log10(r)));const f=r/p;return (f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p}
 function drawChart(s){
   const byDate=new Map(),oneRM=new Map();for(const e of s.entries){const w=conv(e.weight,e.unit);if(!byDate.has(e.date)||w>byDate.get(e.date))byDate.set(e.date,w);const r=e1rm(e);if(!oneRM.has(e.date)||r>oneRM.get(e.date))oneRM.set(e.date,r)}
@@ -1241,15 +1244,19 @@ function renderCharts(){
   vbars($("cVolume"),{labels:labs,series:[{name:"Volume",values:weeks.map(w=>lift.filter(e=>inWeek(e.date,w)).reduce((a,e)=>a+vol(e),0)),color:"var(--p-back)"}],fmt:v=>fmtW(v),emptyMsg:"Your weekly volume (weight × reps, added up across every working set) appears here once you log a lifting workout."});
   const rate=kcalPerMetMin();const closed=Object.keys(st.days).filter(d=>st.days[d]&&st.days[d].closed&&st.log.some(e=>e.date===d&&hasWork(e)));
   const kOf=d=>dayCalc(d,st.days[d].minutes).kcal||0,nOf=d=>dayCalc(d,st.days[d].minutes).net||0;const wk=weeks.map(w=>closed.filter(d=>inWeek(d,w)).reduce((a,d)=>a+kOf(d),0));
-  for(const b of document.querySelectorAll("[data-kv]"))b.setAttribute("aria-pressed",String(b.dataset.kv===(st.kView||"week")));
+  for(const b of document.querySelectorAll("[data-kv]"))b.setAttribute("aria-pressed",String(b.dataset.kv===(st.kView||"day")));
   $("kFat").innerHTML="";
-  if(!rate){$("kStats").innerHTML="";$("cKcal").innerHTML=`<div class="empty">Add your age, sex and weight on the <a href="#profile" data-go="profile">Profile</a> tab to see calories burned.</div>`}
+  if(!rate){$("kStats").innerHTML="";$("kList").innerHTML="";$("cKcal").innerHTML=`<div class="empty">Add your age, sex and weight on the <a href="#profile" data-go="profile">Profile</a> tab to see calories burned.</div>`}
   else{const n=closed.length;const tot=closed.reduce((a,d)=>a+kOf(d),0);const active=wk.filter(v=>v>0);
     const netAll=closed.reduce((a,d)=>a+nOf(d),0),netWeek=closed.filter(d=>inWeek(d,weeks[weeks.length-1])).reduce((a,d)=>a+nOf(d),0);
     $("kStats").innerHTML=`<div class="stat"><b>${wk[wk.length-1].toLocaleString()}</b><span>This week</span></div><div class="stat"><b>${n?Math.round(tot/n).toLocaleString():"—"}</b><span>Per workout, average</span></div>
       <div class="stat"><b>${tot.toLocaleString()}</b><span>All time</span></div><div class="stat"><b>${fatShort(netAll)}</b><span>Body fat equivalent, all time</span></div>`;
-    if((st.kView||"week")==="week")vbars($("cKcal"),{labels:labs,series:[{name:"Calories",values:wk,color:"var(--p-core)"}],fmt:v=>Math.round(v).toLocaleString(),emptyMsg:"Calories appear here after you finish a workout with Finish workout on the Log tab."});
+    const kv=st.kView||"day";
+    if(kv==="day"){const dd=Array.from({length:14},(_,i)=>addDays(today(),i-13));vbars($("cKcal"),{labels:dd.map(d=>{const x=parse(d);return (x.getMonth()+1)+"/"+x.getDate()}),series:[{name:"Calories",values:dd.map(d=>closed.includes(d)?kOf(d):0),color:"var(--p-core)"}],fmt:v=>Math.round(v).toLocaleString(),emptyMsg:"No finished workouts in the last 14 days. Calories appear here after you tap Finish workout on the Log tab."})}
+    else if(kv==="week")vbars($("cKcal"),{labels:labs,series:[{name:"Calories",values:wk,color:"var(--p-core)"}],fmt:v=>Math.round(v).toLocaleString(),emptyMsg:"Calories appear here after you finish a workout with Finish workout on the Log tab."});
     else{const ds=closed.sort().slice(-12);vbars($("cKcal"),{labels:ds.map(short),series:[{name:"Calories",values:ds.map(kOf),color:"var(--p-core)"}],fmt:v=>Math.round(v).toLocaleString(),emptyMsg:"Calories appear here after you finish a workout with Finish workout on the Log tab."})}
+    const ld=closed.slice().sort().reverse();const showN=st.kAll?ld.length:7;
+    $("kList").innerHTML=ld.length?`<div class="eyebrow" style="margin:4px 0 6px">Calories per workout day</div><div class="tablewrap"><table class="klist"><thead><tr><th>Day</th><th class="n">Minutes</th><th class="n">Calories</th><th class="n">Above resting</th><th class="n">Fat equiv.</th></tr></thead><tbody>${ld.slice(0,showN).map(d=>{const c=dayCalc(d,st.days[d].minutes);return `<tr><td>${esc(longD(d))}${c.watch?' <span class="wtag">⌚</span>':""}</td><td class="n">${c.minutes}</td><td class="n"><b>${(c.kcal||0).toLocaleString()}</b></td><td class="n">${(c.net||0).toLocaleString()}</td><td class="n">${fatShort(c.net||0)}</td></tr>`}).join("")}</tbody></table></div>${ld.length>7?`<div class="row" style="justify-content:center;margin-top:6px"><button class="ghost" data-kall="1">${st.kAll?"Show fewer":`Show all ${ld.length} days`}</button></div>`:""}`:"";
     if(n)$("kFat").innerHTML=`<div><b>This week</b><span>${netWeek.toLocaleString()} extra calories from exercise ≈ ${fatLong(netWeek)} of body fat</span></div><div><b>All time</b><span>${netAll.toLocaleString()} extra calories from exercise ≈ ${fatLong(netAll)} of body fat</span></div>`}
   renderDailyChart();
   vbars($("cDone"),{labels:labs,series:[{name:"Workouts",values:weeks.map(w=>new Set(done.filter(e=>inWeek(e.date,w)).map(e=>e.date)).size),color:"var(--good)"}],fmt:v=>String(Math.round(v)),emptyMsg:"The number of days you trained each week appears here."});
