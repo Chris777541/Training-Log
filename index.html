@@ -937,7 +937,7 @@ function lastBox(e,last){
 }
 function partWords(e){const p=e.part||partOf(e.exercise);return ({"Hamstrings & glutes":"hamstrings and glutes","Full body":"body","Core":"core"})[p]||p.toLowerCase()}
 function firstOfPart(e){if(e.type==="Cardio"||isTimed(e))return null;const pt=e.part||partOf(e.exercise);
-  const list=st.log.filter(x=>x.date===e.date&&x.type!=="Cardio"&&!isTimed(x)&&(x.part||partOf(x.exercise))===pt).sort((a,b)=>exRank(a)-exRank(b)||(a.ts||0)-(b.ts||0));return list[0]||null}
+  const list=orderItems(st.log.filter(x=>x.date===e.date)).filter(x=>x.type!=="Cardio"&&!isTimed(x)&&(x.part||partOf(x.exercise))===pt);return list[0]||null}
 function intensityPicker(e){
   const c=cardioLv(e);const cur=cardioLevel(e);const k=kcalPerMetMin();const m=Number(e.minutes)||0;
   const btns=c.l.map(([key,met,desc])=>`<button class="lvbtn lv-${key}" data-lv="${key}" aria-pressed="${key===cur[0]}"><b>${LV[key][0]}</b><small>${esc(desc)}</small></button>`).join("");
@@ -963,7 +963,7 @@ function card(e){
     const tgt=`${lastBox(e,last)}<div class="spread"><label class="inl">${timed?"Time goal":"Rep goal"}<select data-tgt="1">${opts(timed?TIME_TARGETS:TARGETS,e.target)}</select></label></div>`;
     const cb=c?`<div class="coach${c.up?" up":c.down?" down":""}"><b>${c.up?"Level up":c.down?"Reset":c.first?"Getting started":"Today's goal"}</b> ${esc(c.msg)}</div>`:"";
     let wuHTML="";const firstOf=firstOfPart(e);
-    if(!timed&&firstOf&&firstOf!==e&&!(e.warmups||[]).length){
+    if(!timed&&firstOf&&firstOf!==e&&!(e.warmups||[]).some(w=>w.done)){
       wuHTML=`<div class="wunote"><b>Warm-up</b> Not needed. Your ${esc(partWords(e))} ${/s$/.test(partWords(e))&&!/biceps|triceps/.test(partWords(e))?"are":"is"} already warm from ${esc(firstOf.exercise)}.</div>`;
     }else if(!timed){
       const saved=(e.warmups||[]).length>0;const W=workW(e,ui);let rows=null,msg="";
