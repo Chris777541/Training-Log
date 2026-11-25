@@ -671,7 +671,7 @@ const hasWork=e=>e.type==="Cardio"?(Number(e.minutes)||0)>0:(e.setList||[]).leng
 let toastT=null;
 function toast(msg,err){const t=$("toast");t.textContent=msg;t.classList.toggle("err",!!err);t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{t.hidden=true},err?4000:2200)}
 function setStatus(id,msg,err){const el=$(id);if(!el)return;el.textContent=msg;el.classList.toggle("err",!!err);if(msg&&!err)setTimeout(()=>{if(el.textContent===msg)el.textContent=""},3500)}
-function wStep(){return unit()==="kg"?1.25:2.5}
+function wStep(){return unit()==="kg"?1.25:5}
 function roundTo(v,s){return Math.max(0,Math.round(v/s)*s)}
 function roundW(v){return roundTo(v,wStep())}
 let wCache={};
@@ -686,8 +686,8 @@ function wOpts(sel){
 /* ---------- targets, coaching, warm-ups ---------- */
 function defTarget(name){if(TIMED.has(name))return "45 sec";if(DEF_T[name])return DEF_T[name];if(UPPER_BIG.has(name)||LOWER_BIG.has(name)||isCompound(name))return "6–10";return "10–15"}
 function repRange(t){t=String(t||"");if(/sec|min|AMRAP/i.test(t))return null;const m=t.match(/(\d+)\s*[–-]\s*(\d+)/);if(m)return[Number(m[1]),Number(m[2])];const n=parseInt(t,10);return isNaN(n)?null:[n,n]}
-function incFor(name){const kg=unit()==="kg";const x=EXBY[name];if(LOWER_BIG.has(name)||(isCompound(name)&&["Quads","Hamstrings & glutes","Full body"].includes(x.p)&&!["body only","bands"].includes(x.eq)))return kg?5:10;if(UPPER_BIG.has(name)||isCompound(name))return kg?2.5:5;return kg?1.25:2.5}
-function setsOf(e){return (e.setList||[]).filter(s=>!s.drop).map(s=>({w:roundW(conv(s.w,e.unit)),r:Number(s.r)||0}))}
+function incFor(name){const kg=unit()==="kg";const x=EXBY[name];if(LOWER_BIG.has(name)||(isCompound(name)&&["Quads","Hamstrings & glutes","Full body"].includes(x.p)&&!["body only","bands"].includes(x.eq)))return kg?5:10;if(UPPER_BIG.has(name)||isCompound(name))return kg?2.5:5;return kg?1.25:5}
+function setsOf(e){return (e.setList||[]).filter(s=>!s.drop).map(s=>({w:roundTo(conv(s.w,e.unit),unit()==="kg"?1.25:2.5),r:Number(s.r)||0}))}
 function histFor(name,ex){return st.log.filter(e=>e.exercise===name&&e.id!==(ex&&ex.id)&&hasWork(e)&&(!ex||e.date<=ex.date)).sort((a,b)=>b.date.localeCompare(a.date)||(b.ts||0)-(a.ts||0))}
 function lastFor(name,ex){return histFor(name,ex)[0]||null}
 function lastTarget(name){const h=st.log.filter(e=>e.exercise===name&&e.target).sort((a,b)=>b.date.localeCompare(a.date)||(b.ts||0)-(a.ts||0));return h[0]?h[0].target:null}
