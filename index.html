@@ -428,6 +428,7 @@ nav.tabs a[data-v="food"]{color:#9A6B00}nav.tabs a[data-v="food"][aria-current="
 .mealpick button{padding:10px 4px;border-radius:10px;border:2px solid var(--line);background:var(--surface)}
 .mealpick button[aria-pressed="true"]{border-color:var(--mcol);background:color-mix(in srgb,var(--mcol) 18%,var(--surface))}
 .fchips{display:flex;flex-wrap:wrap;gap:6px}
+#fdQuick{display:grid;gap:4px}#fdQuick:empty{display:none}.fsaved select{font-weight:600}
 .fchip{border-radius:999px;padding:7px 12px;background:var(--sunk);font-weight:500;font-size:.85rem}.fchip small{color:var(--muted);margin-left:4px}
 .fsug{border:1px solid var(--line);border-radius:10px;overflow:hidden;display:grid;margin-top:-4px}
 .fsug button{text-align:left;border:0;border-radius:0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px;font-weight:500}
@@ -1779,8 +1780,12 @@ function renderFoodMeals(){
 }
 const foodsSorted=()=>Object.entries(st.foods).filter(([,f])=>f&&f.name).sort((a,b)=>(b[1].uses||0)-(a[1].uses||0)||(b[1].last||0)-(a[1].last||0));
 function renderFoodQuick(){
-  const top=foodsSorted().slice(0,8);
-  $("fdQuick").innerHTML=top.length?`<div class="fchips" aria-label="Your usual foods">${top.map(([k,f])=>`<button class="fchip" data-fk="${esc(k)}">${esc(f.name)}<small>${fmtK(f.kcal)}</small></button>`).join("")}</div>`:"";
+  const all=foodsSorted();const box=$("fdQuick");
+  if(!all.length){box.innerHTML="";return}
+  if(document.activeElement&&document.activeElement.id==="fSaved")return;
+  const opt=([k,f])=>`<option value="${esc(k)}">${esc(f.name)}${f.serv?" · "+esc(f.serv):""} · ${fmtK(f.kcal)} cal</option>`;
+  const top=all.slice(0,8);const az=all.slice().sort((a,b)=>a[1].name.localeCompare(b[1].name));
+  box.innerHTML=`<label class="fsaved">Your saved foods<select id="fSaved"><option value="">Choose from ${all.length} saved food${all.length===1?"":"s"}…</option>${all.length>8?`<optgroup label="Most used">${top.map(opt).join("")}</optgroup><optgroup label="All, A to Z">${az.map(opt).join("")}</optgroup>`:az.map(opt).join("")}</select></label><p class="muted fhint">Or type in the Food box below to find it faster.</p>`;
 }
 let CNF=null,cnfLoad=null;st.offRes=null;st.offQ="";st.fsel=null;
 function loadCNF(){if(CNF||cnfLoad)return cnfLoad;cnfLoad=fetch("cnf.json").then(r=>r.ok?r.json():null).then(d=>{CNF=d&&Array.isArray(d.f)?d.f.map(r=>({n:r[0],l:r[0].toLowerCase(),k:r[1],c:r[2],f:r[3],p:r[4],m:r[5]||[]})):[];if(document.activeElement===$("fName"))renderSug()}).catch(()=>{CNF=[]});return cnfLoad}
@@ -1794,7 +1799,7 @@ function renderSug(){
   if(!q){box.hidden=true;box.innerHTML="";return}
   if(!CNF)loadCNF();
   const m=foodsSorted().filter(([,f])=>f.name.toLowerCase().includes(q)&&f.name.toLowerCase()!==q).sort((a,b)=>(b[1].name.toLowerCase().startsWith(q))-(a[1].name.toLowerCase().startsWith(q))).slice(0,4);
-  let h=m.map(([k,f])=>`<button data-fk="${esc(k)}"><span>${esc(f.name)}${f.serv?` <small>${esc(f.serv)}</small>`:""}</span><small>${fmtK(f.kcal)} cal</small></button>`).join("");
+  let h=(m.length?`<div class="fsrc">Your saved foods</div>`:"")+m.map(([k,f])=>`<button data-fk="${esc(k)}"><span>${esc(f.name)}${f.serv?` <small>${esc(f.serv)}</small>`:""}</span><small>${fmtK(f.kcal)} cal</small></button>`).join("");
   if(q.length>=2){const c=cnfSearch(q);if(c.length)h+=`<div class="fsrc">Canadian Nutrient File</div>`+c.map(i=>`<button data-cnf="${i}"><span>${esc(CNF[i].n)}</span><small>${fmtK(CNF[i].k)} cal / 100 g</small></button>`).join("");
     else if(!CNF)h+=`<div class="fsrc">Loading the food database…</div>`}
   if(ONLINE&&q.length>=3){
@@ -1905,6 +1910,7 @@ for(const id of ["fK","fC","fF","fP","fQty","fServ"])$(id).addEventListener("key
 $("fC").addEventListener("input",kHint);$("fF").addEventListener("input",kHint);$("fP").addEventListener("input",kHint);$("fK").addEventListener("input",kHint);
 function kHint(){const c=nn($("fC").value),f=nn($("fF").value),p=nn($("fP").value);$("fK").placeholder=!$("fK").value&&(c||f||p)?String(Math.round(c*4+f*9+p*4)):"0"}
 $("fdSearch").addEventListener("input",renderFoodList);
+$("fdQuick").addEventListener("change",ev=>{if(ev.target.id!=="fSaved")return;const k=ev.target.value;if(!k)return;fillFood(k);ev.target.blur();renderFoodQuick();$("fQty").focus()});
 $("fGoal").onchange=async()=>{st.settings.foodGoal=$("fGoal").value;renderFood();await guard(saveSettings,null)};
 $("v-food").addEventListener("click",ev=>{
   const g=ev.target.closest("[data-go]");if(g){ev.preventDefault();go(g.dataset.go);window.scrollTo({top:0});return}
