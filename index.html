@@ -468,11 +468,15 @@ nav.tabs a[data-v="food"]{color:#9A6B00}nav.tabs a[data-v="food"][aria-current="
 .fmhead b{font-family:var(--display);font-size:1.2rem;text-transform:uppercase;letter-spacing:.04em}
 .fmhead span{flex:1;color:var(--muted);font-size:.85rem}
 button.sm{padding:6px 10px;font-size:.85rem}
-.fitem{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
+.fitem{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--line)}
 .fitem>div{min-width:0}.fitem b{display:block;font-weight:600;overflow-wrap:anywhere}.fitem small{color:var(--muted);font-size:.78rem}
 .fqty{display:flex;align-items:center;gap:3px;font-size:.85rem;color:var(--muted)}.fqty input{width:58px;padding:6px}
 .fikcal{font-family:var(--display);font-weight:700;font-size:1.15rem;font-variant-numeric:tabular-nums;min-width:40px;text-align:right}
 .fchart svg{width:100%;height:auto;display:block}
+.fact{display:flex;gap:16px;margin-top:3px}.fact .linkbtn{font-size:.85rem;padding:2px 0}.linkbtn.danger{color:var(--over)}
+.fitem.editing{background:color-mix(in srgb,var(--mcol) 18%,transparent);border-radius:8px;padding-inline:6px}
+#fdForm.editing{outline:3px solid #E0A100;outline-offset:-3px}
+#fdForm{scroll-margin-top:84px}
 #fdTotals>*,#fdSum>*,#fdTarget>*{min-width:0}
 .ftile small{display:block;margin-top:2px}
 .flist{display:grid}
@@ -557,7 +561,7 @@ button.sm{padding:6px 10px;font-size:.85rem}
       <div id="fdSum" style="display:grid;gap:12px"></div>
     </div>
     <div class="panel" id="fdForm">
-      <div><div class="eyebrow">Add food</div><h2>What did you eat?</h2></div>
+      <div><div class="eyebrow">Add food</div><h2 id="fFormH">What did you eat?</h2></div>
       <div class="mealpick" role="group" aria-label="Meal">
         <button class="m-breakfast" data-pm="breakfast" aria-pressed="false">Breakfast</button><button class="m-lunch" data-pm="lunch" aria-pressed="false">Lunch</button><button class="m-dinner" data-pm="dinner" aria-pressed="false">Dinner</button><button class="m-snack" data-pm="snack" aria-pressed="false">Snack</button>
       </div>
@@ -580,7 +584,7 @@ button.sm{padding:6px 10px;font-size:.85rem}
       </div>
       <p class="muted fhint" id="fHint">Start typing to search your foods and the Canadian Nutrient File (about 5,700 foods from Health Canada)<span class="pwaonly">, or search packaged and brand-name foods online with Open Food Facts</span>. Or enter the numbers for one serving, as they appear on the label. Leave Calories blank and it's worked out from carbs, fat and protein (4, 9 and 4 calories per gram).</p>
       <label class="toggle"><input type="checkbox" id="fSave" checked><span>Save to My foods, so it's quick to add next time</span></label>
-      <div class="row"><button class="primary" id="fAdd">Add to breakfast</button><button class="ghost" id="fClear">Clear</button><span class="status" id="fStatus"></span></div>
+      <div class="row"><button class="primary" id="fAdd">Add to breakfast</button><button class="ghost" id="fClear">Clear</button><button class="ghost" id="fDelEd" hidden style="color:var(--over)">Remove</button><span class="status" id="fStatus"></span></div>
     </div>
     <div class="panel"><div><div class="eyebrow">Meals</div><h2 id="fdMealsH">Today's food</h2></div><div id="fdMeals"></div></div>
     <div class="panel"><div><div class="eyebrow">Totals</div><h2>Day, week and month</h2></div><div id="fdTotals" style="display:grid;gap:14px"></div></div>
@@ -1746,7 +1750,10 @@ function renderFood(){
   $("fdLabel").textContent=d===t?"Today · "+longD(d):longD(d)+", "+parse(d).getFullYear();
   $("fdInput").value=d;$("fdToday").hidden=d===t;$("fdMealsH").textContent=d===t?"Today's food":"Food on "+longD(d);
   for(const b of document.querySelectorAll("[data-pm]"))b.setAttribute("aria-pressed",String(b.dataset.pm===st.fmeal));
-  $("fAdd").textContent="Add to "+mealName(st.fmeal).toLowerCase().replace(/s$/,"");
+  if(st.fedit&&!fdItems(st.fedit.date).some(i=>i.id===st.fedit.id))st.fedit=null;
+  $("fdForm").classList.toggle("editing",!!st.fedit);$("fFormH").textContent=st.fedit?"Edit food":"What did you eat?";
+  $("fAdd").textContent=st.fedit?"Save changes":"Add to "+mealName(st.fmeal).toLowerCase().replace(/s$/,"");$("fClear").textContent=st.fedit?"Cancel":"Clear";$("fDelEd").hidden=!st.fedit;
+  $("fDelEd").textContent=st.fedit&&st.confirm==="f:"+st.fedit.id?"Tap again to remove":"Remove";
   renderFoodSum();renderFoodMeals();renderFoodQuick();renderFoodTotals();renderFoodTarget();renderFoodList();if(typeof renderBalance==="function")renderBalance();
 }
 function renderFoodSum(){
@@ -1766,7 +1773,7 @@ function renderFoodMeals(){
   for(const[k,l] of MEALS){const its=items.filter(i=>i.meal===k);const sub=its.reduce((a,i)=>a+itemK(i),0);
     h+=`<section class="fmeal m-${k}" aria-label="${l}"><div class="fmhead"><b>${l}</b><span>${its.length?fmtK(sub)+" calories":"Nothing yet"}</span><button class="ghost sm" data-fmeal="${k}">+ Add</button></div>`;
     for(const i of its){const q=Number(i.qty)||1;const sub2=[i.serv?esc(i.serv):"",esc(macroTxt(i,q))].filter(Boolean).join(" · ");
-      h+=`<div class="fitem" data-fid="${esc(i.id)}"><div><b>${esc(i.name)}</b>${sub2?`<small>${sub2}</small>`:""}</div><label class="fqty" title="Servings">×<input type="number" inputmode="decimal" step="0.25" min="0.25" value="${q}" data-fq="1" aria-label="Servings of ${esc(i.name)}"></label><span class="fikcal">${fmtK(itemK(i))}</span><button class="ghost sm" data-frm="1" aria-label="Remove ${esc(i.name)}">${st.confirm==="f:"+i.id?"Tap again":"✕"}</button></div>`}
+      const ed=st.fedit&&st.fedit.id===i.id;h+=`<div class="fitem${ed?" editing":""}" data-fid="${esc(i.id)}"><div><b>${esc(i.name)}</b>${sub2?`<small>${sub2}</small>`:""}<span class="fact"><button class="linkbtn" data-fed="1">${ed?"Editing…":"Edit"}</button><button class="linkbtn danger" data-frm="1" aria-label="Remove ${esc(i.name)}">${st.confirm==="f:"+i.id?"Tap again to remove":"Remove"}</button></span></div><label class="fqty" title="Servings">×<input type="number" inputmode="decimal" step="0.25" min="0.25" value="${q}" data-fq="1" aria-label="Servings of ${esc(i.name)}"></label><span class="fikcal">${fmtK(itemK(i))}</span></div>`}
     h+=`</section>`}
   $("fdMeals").innerHTML=h;
 }
@@ -1824,6 +1831,10 @@ function addFood(){
   if(!k)k=Math.round(c*4+f*9+p*4);
   if(!k){setStatus("fStatus","Enter the calories, or the carbs, fat and protein.",true);$("fK").focus();return}
   const qty=nn($("fQty").value)||1;const serv=$("fServ").value.trim().slice(0,40);
+  if(st.fedit){const E=st.fedit;const it=fdItems(E.date).find(i=>i.id===E.id);
+    if(it){Object.assign(it,{meal:st.fmeal,name,serv,qty:r2(qty),kcal:r2(k),c:r2(c),f:r2(f),p:r2(p)});persistFoodDay(E.date)}
+    if($("fSave").checked){const key=fKey(name);const prev=st.foods[key];st.foods[key]={name,serv,kcal:r2(k),c:r2(c),f:r2(f),p:r2(p),uses:(prev&&prev.uses)||1,last:Date.now()};persistFood(key)}
+    st.fedit=null;st.fmeal=defMeal();clearFoodForm();renderFood();toast(`${name} updated`);return}
   const d=st.fday;const day=st.food[d]||(st.food[d]={items:[]});if(!Array.isArray(day.items))day.items=[];
   day.items.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),meal:st.fmeal,name,serv,qty:r2(qty),kcal:r2(k),c:r2(c),f:r2(f),p:r2(p),t:Date.now()});
   persistFoodDay(d);
@@ -1876,10 +1887,16 @@ function renderFoodList(){
     `<p class="muted" style="margin:0 0 4px;font-size:.8rem">${all.length} saved food${all.length===1?"":"s"}. To change one, tap Use, edit the numbers and add it again: My foods keeps the latest values.</p>`+
     list.map(([k,f])=>`<div class="frow" data-fk2="${esc(k)}"><div><b>${esc(f.name)}</b><small>${f.serv?esc(f.serv)+" · ":""}${fmtK(f.kcal)} cal${macroTxt(f)?" · "+esc(macroTxt(f)):""}${f.uses?` · used ${f.uses} time${f.uses===1?"":"s"}`:""}</small></div><div class="fbtns"><button class="sm" data-fuse="1">Use</button><button class="ghost sm" data-fdel="1">${st.confirm==="fd:"+k?"Tap again":"Delete"}</button></div></div>`).join("");
 }
-function setFDay(d){if(!/^\d{4}-\d{2}-\d{2}$/.test(d||""))return;st.fday=d;st.confirm=null;renderFood()}
+function setFDay(d){if(!/^\d{4}-\d{2}-\d{2}$/.test(d||""))return;if(st.fedit&&st.fedit.date!==d){st.fedit=null;clearFoodForm();setStatus("fStatus","")}st.fday=d;st.confirm=null;renderFood()}
 $("fdPrev").onclick=()=>setFDay(addDays(st.fday,-1));$("fdNext").onclick=()=>setFDay(addDays(st.fday,1));
 $("fdToday").onclick=()=>setFDay(today());$("fdInput").onchange=()=>setFDay($("fdInput").value);
-$("fAdd").onclick=addFood;$("fClear").onclick=()=>{clearFoodForm();setStatus("fStatus","")};
+$("fAdd").onclick=addFood;$("fClear").onclick=()=>{const was=!!st.fedit;st.fedit=null;st.confirm=null;if(was)st.fmeal=defMeal();clearFoodForm();setStatus("fStatus","");renderFood()};
+function startEdit(id){const it=fdItems(st.fday).find(i=>i.id===id);if(!it||!canEdit())return;st.fedit={date:st.fday,id};st.confirm=null;st.fmeal=it.meal;clearFoodForm();
+  $("fName").value=it.name;$("fServ").value=it.serv||"";$("fQty").value=Number(it.qty)||1;$("fK").value=it.kcal?r2(it.kcal):"";$("fC").value=it.c?r2(it.c):"";$("fF").value=it.f?r2(it.f):"";$("fP").value=it.p?r2(it.p):"";
+  renderFood();setStatus("fStatus",`Editing ${it.name}. Change anything, including the meal, then tap Save changes.`);$("fdForm").scrollIntoView({behavior:"smooth",block:"start"})}
+function removeItem(date,id){const day=st.food[date];const it=day&&day.items.find(i=>i.id===id);if(!it)return;day.items=day.items.filter(i=>i.id!==id);persistFoodDay(date);
+  if(st.fedit&&st.fedit.id===id){st.fedit=null;st.fmeal=defMeal();clearFoodForm();setStatus("fStatus","")}st.confirm=null;renderFood();toast(`${it.name} removed`)}
+$("fDelEd").onclick=()=>{if(!st.fedit||!canEdit())return;if(st.confirm!=="f:"+st.fedit.id){st.confirm="f:"+st.fedit.id;renderFood();return}removeItem(st.fedit.date,st.fedit.id)};
 $("fName").addEventListener("input",()=>{if(st.fsel){st.fsel=null;$("fPortRow").hidden=true}renderSug()});
 $("fName").addEventListener("focus",()=>{loadCNF()});
 $("fPort").onchange=applyPort;$("fGrams").addEventListener("input",applyPort);
@@ -1902,8 +1919,9 @@ $("v-food").addEventListener("click",ev=>{
   if(row&&ev.target.closest("[data-fdel]")){if(!canEdit())return;const k=row.dataset.fk2;if(st.confirm!=="fd:"+k){st.confirm="fd:"+k;renderFoodList();return}
     st.confirm=null;const name=st.foods[k]&&st.foods[k].name;delete st.foods[k];persistFood(k);renderFood();toast(`${name||"Food"} removed from My foods`);return}
   const it=ev.target.closest("[data-fid]");
+  if(it&&ev.target.closest("[data-fed]")){startEdit(it.dataset.fid);return}
   if(it&&ev.target.closest("[data-frm]")){if(!canEdit())return;const id=it.dataset.fid;if(st.confirm!=="f:"+id){st.confirm="f:"+id;renderFoodMeals();return}
-    st.confirm=null;const day=st.food[st.fday];if(day){day.items=day.items.filter(i=>i.id!==id);persistFoodDay(st.fday)}renderFood();return}
+    removeItem(st.fday,id);return}
 });
 $("v-food").addEventListener("change",ev=>{const q=ev.target.closest("[data-fq]");if(!q)return;const it=q.closest("[data-fid]");if(!it||!canEdit())return;
   const day=st.food[st.fday];const i=day&&day.items.find(x=>x.id===it.dataset.fid);if(!i)return;const v=nn(q.value);if(!v){q.value=i.qty;return}
