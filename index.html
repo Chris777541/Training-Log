@@ -431,7 +431,22 @@ nav.tabs a[data-v="food"]{color:#9A6B00}nav.tabs a[data-v="food"][aria-current="
 .fchip{border-radius:999px;padding:7px 12px;background:var(--sunk);font-weight:500;font-size:.85rem}.fchip small{color:var(--muted);margin-left:4px}
 .fsug{border:1px solid var(--line);border-radius:10px;overflow:hidden;display:grid;margin-top:-4px}
 .fsug button{text-align:left;border:0;border-radius:0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:8px;font-weight:500}
-.fsug button:last-child{border-bottom:0}.fsug small{color:var(--muted)}
+.fsug button:last-child{border-bottom:0}.fsug small{color:var(--muted);white-space:nowrap}
+.fsrc{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--sunk);padding:6px 12px}
+.fsug .fonline{color:var(--accent);font-weight:600;justify-content:center}
+.pwaonly{display:none}html.pwa .pwaonly{display:inline}
+/* calorie balance */
+.balance{background:#000;color:#fff;border-radius:16px;padding:18px max(16px,2vw);display:grid;gap:14px;border:2px solid #000;box-shadow:0 10px 28px rgba(0,0,0,.35)}
+.balance .bl{font-family:var(--display);font-size:1.05rem;letter-spacing:.12em;text-transform:uppercase;color:#fff}
+.balance .bnum{font-family:var(--display);font-weight:700;font-size:clamp(4rem,19vw,6.5rem);line-height:.95;font-variant-numeric:tabular-nums;color:#fff}
+.balance .bsub{font-size:1.2rem;color:#fff;line-height:1.4}
+.balance .bsub b{font-family:var(--display);font-size:1.5rem}
+.balance .bnote{font-size:.85rem;color:#fff;opacity:.85;line-height:1.45}
+.balance a{color:#fff}
+.brows{display:grid;border-top:1px solid #444}
+.brow{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:baseline;padding:10px 0;border-bottom:1px solid #333;color:#fff}
+.brow .bd{font-size:1.1rem;font-weight:600}.brow .bv{font-family:var(--display);font-weight:700;font-size:2.3rem;font-variant-numeric:tabular-nums;line-height:1;text-align:right}
+.brow .be{grid-column:1/-1;font-size:.95rem;color:#fff;opacity:.85}
 .macro4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 @media (max-width:440px){.macro4{grid-template-columns:repeat(2,1fr)}}
 .fhint{margin:0;font-size:.8rem}
@@ -553,13 +568,17 @@ button.sm{padding:6px 10px;font-size:.85rem}
         <label>Serving size<input id="fServ" maxlength="40" placeholder="e.g. 1 cup or 175 g"></label>
         <label>Servings eaten<input id="fQty" type="number" inputmode="decimal" step="0.25" min="0.25" value="1"></label>
       </div>
+      <div class="grid2" id="fPortRow" hidden>
+        <label>Portion<select id="fPort"></select></label>
+        <label id="fGramsL" hidden>Grams<input id="fGrams" type="number" inputmode="decimal" min="0" step="any" placeholder="e.g. 150"></label>
+      </div>
       <div class="macro4">
         <label>Calories<input id="fK" type="number" inputmode="decimal" min="0" step="any" placeholder="0"></label>
         <label>Carbs (g)<input id="fC" type="number" inputmode="decimal" min="0" step="any" placeholder="0"></label>
         <label>Fat (g)<input id="fF" type="number" inputmode="decimal" min="0" step="any" placeholder="0"></label>
         <label>Protein (g)<input id="fP" type="number" inputmode="decimal" min="0" step="any" placeholder="0"></label>
       </div>
-      <p class="muted fhint" id="fHint">Enter the numbers for one serving, as they appear on the label. Leave Calories blank and it's worked out from carbs, fat and protein (4, 9 and 4 calories per gram).</p>
+      <p class="muted fhint" id="fHint">Start typing to search your foods and the Canadian Nutrient File (about 5,700 foods from Health Canada)<span class="pwaonly">, or search packaged and brand-name foods online with Open Food Facts</span>. Or enter the numbers for one serving, as they appear on the label. Leave Calories blank and it's worked out from carbs, fat and protein (4, 9 and 4 calories per gram).</p>
       <label class="toggle"><input type="checkbox" id="fSave" checked><span>Save to My foods, so it's quick to add next time</span></label>
       <div class="row"><button class="primary" id="fAdd">Add to breakfast</button><button class="ghost" id="fClear">Clear</button><span class="status" id="fStatus"></span></div>
     </div>
@@ -574,6 +593,7 @@ button.sm{padding:6px 10px;font-size:.85rem}
   </section>
 
   <section class="view" id="v-progress" hidden>
+    <div class="balance" id="balPanel"></div>
     <div class="panel">
       <div><div class="eyebrow">At a glance</div><h2>Your progress</h2></div>
       <div class="stats" id="gStats"></div>
@@ -1727,7 +1747,7 @@ function renderFood(){
   $("fdInput").value=d;$("fdToday").hidden=d===t;$("fdMealsH").textContent=d===t?"Today's food":"Food on "+longD(d);
   for(const b of document.querySelectorAll("[data-pm]"))b.setAttribute("aria-pressed",String(b.dataset.pm===st.fmeal));
   $("fAdd").textContent="Add to "+mealName(st.fmeal).toLowerCase().replace(/s$/,"");
-  renderFoodSum();renderFoodMeals();renderFoodQuick();renderFoodTotals();renderFoodTarget();renderFoodList();
+  renderFoodSum();renderFoodMeals();renderFoodQuick();renderFoodTotals();renderFoodTarget();renderFoodList();if(typeof renderBalance==="function")renderBalance();
 }
 function renderFoodSum(){
   const T=fdTarget(),x=fdTot(st.fday);let h="";
@@ -1755,18 +1775,48 @@ function renderFoodQuick(){
   const top=foodsSorted().slice(0,8);
   $("fdQuick").innerHTML=top.length?`<div class="fchips" aria-label="Your usual foods">${top.map(([k,f])=>`<button class="fchip" data-fk="${esc(k)}">${esc(f.name)}<small>${fmtK(f.kcal)}</small></button>`).join("")}</div>`:"";
 }
+let CNF=null,cnfLoad=null;st.offRes=null;st.offQ="";st.fsel=null;
+function loadCNF(){if(CNF||cnfLoad)return cnfLoad;cnfLoad=fetch("cnf.json").then(r=>r.ok?r.json():null).then(d=>{CNF=d&&Array.isArray(d.f)?d.f.map(r=>({n:r[0],l:r[0].toLowerCase(),k:r[1],c:r[2],f:r[3],p:r[4],m:r[5]||[]})):[];if(document.activeElement===$("fName"))renderSug()}).catch(()=>{CNF=[]});return cnfLoad}
+const ONLINE=!!window.__TL_PWA;
+const tidyM=t=>String(t).replace(/(\d)(ml|g|L)\b/g,"$1 $2");
+function cnfSearch(q){if(!CNF)return[];const w=q.split(/[\s,]+/).filter(Boolean);if(!w.length)return[];const out=[];
+  for(let i=0;i<CNF.length;i++){const l=CNF[i].l;if(w.every(x=>l.includes(x))){const sc=(l.startsWith(q)?0:l.startsWith(w[0])?1:2)+(/\braw\b/.test(l)?-.3:0)+l.length/400;out.push([sc,i])}}
+  return out.sort((a,b)=>a[0]-b[0]).slice(0,8).map(x=>x[1])}
 function renderSug(){
   const q=$("fName").value.trim().toLowerCase();const box=$("fSug");
   if(!q){box.hidden=true;box.innerHTML="";return}
-  const m=foodsSorted().filter(([,f])=>f.name.toLowerCase().includes(q)&&f.name.toLowerCase()!==q).sort((a,b)=>(b[1].name.toLowerCase().startsWith(q))-(a[1].name.toLowerCase().startsWith(q))).slice(0,6);
-  box.hidden=!m.length;box.innerHTML=m.map(([k,f])=>`<button data-fk="${esc(k)}"><span>${esc(f.name)}${f.serv?` <small>${esc(f.serv)}</small>`:""}</span><small>${fmtK(f.kcal)} cal</small></button>`).join("");
+  if(!CNF)loadCNF();
+  const m=foodsSorted().filter(([,f])=>f.name.toLowerCase().includes(q)&&f.name.toLowerCase()!==q).sort((a,b)=>(b[1].name.toLowerCase().startsWith(q))-(a[1].name.toLowerCase().startsWith(q))).slice(0,4);
+  let h=m.map(([k,f])=>`<button data-fk="${esc(k)}"><span>${esc(f.name)}${f.serv?` <small>${esc(f.serv)}</small>`:""}</span><small>${fmtK(f.kcal)} cal</small></button>`).join("");
+  if(q.length>=2){const c=cnfSearch(q);if(c.length)h+=`<div class="fsrc">Canadian Nutrient File</div>`+c.map(i=>`<button data-cnf="${i}"><span>${esc(CNF[i].n)}</span><small>${fmtK(CNF[i].k)} cal / 100 g</small></button>`).join("");
+    else if(!CNF)h+=`<div class="fsrc">Loading the food database…</div>`}
+  if(ONLINE&&q.length>=3){
+    if(st.offRes&&st.offQ===q)h+=`<div class="fsrc">Open Food Facts · packaged foods</div>`+(st.offRes.length?st.offRes.map((r,i)=>`<button data-off="${i}"><span>${esc(r.name)}</span><small>${fmtK(r.per.k)} cal / 100 g</small></button>`).join(""):`<div class="fsrc">No packaged foods found online for "${esc(q)}".</div>`);
+    else h+=`<button class="fonline" data-offsearch="1"><span>${st.offBusy?"Searching online…":`Search packaged and brand-name foods online for "${esc(q)}"`}</span></button>`}
+  box.hidden=!h;box.innerHTML=h;
 }
-function fillFood(k){const f=st.foods[k];if(!f)return;
+async function offSearch(){const q=$("fName").value.trim().toLowerCase();if(!q||st.offBusy)return;st.offBusy=true;renderSug();
+  try{const u="https://world.openfoodfacts.org/cgi/search.pl?search_terms="+encodeURIComponent(q)+"&search_simple=1&action=process&json=1&page_size=20&fields=product_name,brands,nutriments,serving_size,serving_quantity";
+    const r=await fetch(u);if(!r.ok)throw 0;const d=await r.json();
+    st.offRes=(d.products||[]).filter(x=>x&&x.product_name&&x.nutriments&&Number(x.nutriments["energy-kcal_100g"])>0).slice(0,8).map(x=>{const n=x.nutriments;const sq=Number(x.serving_quantity);
+      return{name:(x.product_name+(x.brands?" ("+String(x.brands).split(",")[0].trim()+")":"")).slice(0,80),per:{k:+n["energy-kcal_100g"]||0,c:+n.carbohydrates_100g||0,f:+n.fat_100g||0,p:+n.proteins_100g||0},m:sq>0?[["1 serving"+(x.serving_size?" ("+x.serving_size+")":""),sq]]:[]}});
+    st.offQ=q}
+  catch(_){toast("Couldn't reach Open Food Facts. Check your connection and try again.",true)}
+  finally{st.offBusy=false;renderSug()}}
+function pickRef(ref,label){st.fsel=ref;$("fName").value=ref.name.slice(0,80);$("fSug").hidden=true;
+  const opts=ref.m.map(([d,g],i)=>`<option value="${i}">${esc(tidyM(d))}${/^[\d.]+\s?g$/.test(d.trim())?"":` · ${g} g`}</option>`).join("")+`<option value="100">100 g</option><option value="g">Other amount (grams)</option>`;
+  $("fPort").innerHTML=opts;$("fPort").value=ref.m.length?"0":"100";$("fGrams").value="";$("fPortRow").hidden=false;$("fQty").value=1;applyPort();
+  setStatus("fStatus",`From ${label}. Choose the portion, then tap Add.`)}
+function applyPort(){const r=st.fsel;if(!r)return;const v=$("fPort").value;$("fGramsL").hidden=v!=="g";
+  let g,desc;if(v==="g"){g=nn($("fGrams").value);desc=g?g+" g":""}else if(v==="100"){g=100;desc="100 g"}else{const m=r.m[Number(v)];g=m[1];desc=tidyM(m[0])}
+  $("fServ").value=desc.slice(0,40);const x=g/100;
+  $("fK").value=g?Math.round(r.per.k*x):"";$("fC").value=g?r2(Math.round(r.per.c*x*10)/10):"";$("fF").value=g?r2(Math.round(r.per.f*x*10)/10):"";$("fP").value=g?r2(Math.round(r.per.p*x*10)/10):""}
+function fillFood(k){const f=st.foods[k];if(!f)return;st.fsel=null;$("fPortRow").hidden=true;
   $("fName").value=f.name;$("fServ").value=f.serv||"";$("fQty").value=1;
   $("fK").value=f.kcal?r2(f.kcal):"";$("fC").value=f.c?r2(f.c):"";$("fF").value=f.f?r2(f.f):"";$("fP").value=f.p?r2(f.p):"";
   $("fSug").hidden=true;setStatus("fStatus","Filled in from My foods. Change the servings if you need to.");
 }
-function clearFoodForm(){for(const id of ["fName","fServ","fK","fC","fF","fP"])$(id).value="";$("fQty").value=1;$("fSug").hidden=true}
+function clearFoodForm(){st.fsel=null;$("fPortRow").hidden=true;for(const id of ["fName","fServ","fK","fC","fF","fP"])$(id).value="";$("fQty").value=1;$("fSug").hidden=true}
 function addFood(){
   if(!canEdit())return;const name=$("fName").value.trim().replace(/\s+/g," ");
   if(!name){setStatus("fStatus","Type what you ate.",true);$("fName").focus();return}
@@ -1830,7 +1880,9 @@ function setFDay(d){if(!/^\d{4}-\d{2}-\d{2}$/.test(d||""))return;st.fday=d;st.co
 $("fdPrev").onclick=()=>setFDay(addDays(st.fday,-1));$("fdNext").onclick=()=>setFDay(addDays(st.fday,1));
 $("fdToday").onclick=()=>setFDay(today());$("fdInput").onchange=()=>setFDay($("fdInput").value);
 $("fAdd").onclick=addFood;$("fClear").onclick=()=>{clearFoodForm();setStatus("fStatus","")};
-$("fName").addEventListener("input",renderSug);
+$("fName").addEventListener("input",()=>{if(st.fsel){st.fsel=null;$("fPortRow").hidden=true}renderSug()});
+$("fName").addEventListener("focus",()=>{loadCNF()});
+$("fPort").onchange=applyPort;$("fGrams").addEventListener("input",applyPort);
 $("fName").addEventListener("keydown",ev=>{if(ev.key==="Escape")$("fSug").hidden=true});
 for(const id of ["fK","fC","fF","fP","fQty","fServ"])$(id).addEventListener("keydown",ev=>{if(ev.key==="Enter")addFood()});
 $("fC").addEventListener("input",kHint);$("fF").addEventListener("input",kHint);$("fP").addEventListener("input",kHint);$("fK").addEventListener("input",kHint);
@@ -1842,6 +1894,9 @@ $("v-food").addEventListener("click",ev=>{
   const pm=ev.target.closest("[data-pm]");if(pm){st.fmeal=pm.dataset.pm;renderFood();return}
   const fm=ev.target.closest("[data-fmeal]");if(fm){st.fmeal=fm.dataset.fmeal;renderFood();$("fdForm").scrollIntoView({behavior:"smooth",block:"start"});setTimeout(()=>$("fName").focus({preventScroll:true}),350);return}
   const fk=ev.target.closest("[data-fk]");if(fk){fillFood(fk.dataset.fk);$("fQty").focus();return}
+  const cn=ev.target.closest("[data-cnf]");if(cn){const r=CNF[Number(cn.dataset.cnf)];if(r)pickRef({name:r.n,per:{k:r.k,c:r.c,f:r.f,p:r.p},m:r.m},"the Canadian Nutrient File");return}
+  const of=ev.target.closest("[data-off]");if(of){const r=st.offRes&&st.offRes[Number(of.dataset.off)];if(r)pickRef(r,"Open Food Facts");return}
+  if(ev.target.closest("[data-offsearch]")){offSearch();return}
   const row=ev.target.closest("[data-fk2]");
   if(row&&ev.target.closest("[data-fuse]")){fillFood(row.dataset.fk2);$("fdForm").scrollIntoView({behavior:"smooth",block:"start"});return}
   if(row&&ev.target.closest("[data-fdel]")){if(!canEdit())return;const k=row.dataset.fk2;if(st.confirm!=="fd:"+k){st.confirm="fd:"+k;renderFoodList();return}
@@ -1853,7 +1908,23 @@ $("v-food").addEventListener("click",ev=>{
 $("v-food").addEventListener("change",ev=>{const q=ev.target.closest("[data-fq]");if(!q)return;const it=q.closest("[data-fid]");if(!it||!canEdit())return;
   const day=st.food[st.fday];const i=day&&day.items.find(x=>x.id===it.dataset.fid);if(!i)return;const v=nn(q.value);if(!v){q.value=i.qty;return}
   i.qty=r2(v);persistFoodDay(st.fday);renderFood()});
-document.addEventListener("click",ev=>{if(!ev.target.closest("#fSug")&&ev.target!==$("fName"))$("fSug").hidden=true});
+document.addEventListener("click",ev=>{if(ev.target.isConnected&&!ev.target.closest("#fSug")&&ev.target!==$("fName"))$("fSug").hidden=true});
+/* ---------- CALORIE BALANCE (eaten minus burned) ---------- */
+function balanceFor(d){const p=st.profile||{};const b=bmr(p);if(!b)return null;const E=fdTot(d);const dd=st.days[d]||{};const D=dd.daily;
+  const c=dayCalc(d,dd.minutes);const w=st.log.some(e=>e.date===d&&hasWork(e))?Math.max(0,(c&&c.net)||0):0;let burned,src;
+  if(D&&D.active!=null&&Number(D.active)>=0){const a=Number(D.active);burned=b+Math.max(a,w);src=w>a?"resting + workouts (more than your tracker recorded)":"resting + fitness tracker (includes workouts)"}
+  else{const act=ACTS.find(x=>x[0]===p.act);if(act){burned=b*act[2];src="profile estimate (includes workouts)"}else{burned=b+w;src=w?"resting + workouts":"resting only"}}
+  burned=Math.round(burned);return{eat:Math.round(E.kcal),n:E.n,burned,net:Math.round(E.kcal)-burned,src,tracker:!!(D&&D.active!=null)}}
+const sgn=n=>(n>0?"+":n<0?"−":"")+Math.abs(n).toLocaleString();
+function renderBalance(){const box=$("balPanel");if(!box)return;const t=today();
+  if(!bmr(st.profile)){box.innerHTML=`<div class="bl">Calorie balance</div><div class="bsub">Add your age, sex and weight on the <a href="#profile" data-go="profile">Profile</a> tab to see calories in minus calories out for each day.</div>`;return}
+  const B=balanceFor(t);const word=n=>n<0?"under what you burned":n>0?"over what you burned":"even";
+  let h=`<div class="bl">Calorie balance · Today</div><div class="bnum" aria-label="${B.net} calories">${sgn(B.net)}</div>
+    <div class="bsub">Eaten <b>${B.eat.toLocaleString()}</b> − Burned <b>${B.burned.toLocaleString()}</b><br>${B.n?`${Math.abs(B.net).toLocaleString()} ${word(B.net)}`:"No food logged yet today"}</div>`;
+  const rows=[];for(let i=1;i<=13;i++){const d=addDays(t,-i);const x=balanceFor(d);if(x&&x.n)rows.push([d,x])}
+  if(rows.length)h+=`<div class="brows">${rows.map(([d,x])=>`<div class="brow"><span class="bd">${esc(longD(d))}</span><span class="bv">${sgn(x.net)}</span><span class="be">Eaten ${x.eat.toLocaleString()} − Burned ${x.burned.toLocaleString()}</span></div>`).join("")}</div>`;
+  h+=`<div class="bnote">Minus means you ate less than you burned. Burned is your resting calories plus your fitness tracker's active calories, or your workout calories if they were higher. On days without tracker data it uses your profile's daily estimate, which already includes workouts. Today's burned is: ${esc(B.src)}.</div>`;
+  box.innerHTML=h}
 /* ---------- REST TIMER (counts up from the last logged set) ---------- */
 const TM_KEY="tl-rest-timer";
 let tm={start:null,acc:0,running:false,label:""};
@@ -1896,7 +1967,7 @@ $("unitSel").onchange=async()=>{st.settings.unit=$("unitSel").value;st.ui={};ren
 function renderAll(){
   maybeSeed();
   $("unitSel").value=unit();
-  renderDay();renderDaily();refreshQuick(true);renderHistory();renderProgress();renderLibrary();renderProfile();renderFood();
+  renderDay();renderDaily();refreshQuick(true);renderHistory();renderProgress();renderLibrary();renderProfile();renderFood();renderBalance();
 }
 function scheduleRender(){const a=document.activeElement;
   if(a&&a.closest&&a.closest("#v-log,#v-food")&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)){st.pending=true;return}renderAll()}

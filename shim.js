@@ -1,6 +1,7 @@
 /* On-device storage that stands in for the Claude artifact database, so the same app runs standalone on the iPhone. */
 (function(){
   "use strict";
+  window.__TL_PWA=true;document.documentElement.classList.add("pwa");
   const KEY="tlog-db-v1";let store={};
   try{store=JSON.parse(localStorage.getItem(KEY)||"{}")||{}}catch(_){store={}}
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(_){}
