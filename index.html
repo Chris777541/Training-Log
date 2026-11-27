@@ -1712,7 +1712,7 @@ $("pfSave").onclick=async()=>{
 };
 /* ---------- FOOD ---------- */
 const MEALS=[["breakfast","Breakfast"],["lunch","Lunch"],["dinner","Dinner"],["snack","Snacks"]];
-const GOALS=[["lose1","Lose about 1 lb (0.45 kg) a week",-500],["lose05","Lose about ½ lb (0.23 kg) a week",-250],["maintain","Stay at my current weight",0],["gain","Build muscle with a slow gain",250]];
+const GOALS=[["lose2","Lose about 2 lb (0.9 kg) a week",-1000],["lose1","Lose about 1 lb (0.45 kg) a week",-500],["lose05","Lose about ½ lb (0.23 kg) a week",-250],["maintain","Stay at my current weight",0],["gain","Build muscle with a slow gain",250]];
 st.food={};st.foods={};st.fday=null;st.fmeal=null;
 const pendF={},chainF={},pendFd={},chainFd={};
 const clone=v=>JSON.parse(JSON.stringify(v));
@@ -1730,7 +1730,7 @@ const fdItems=d=>(st.food[d]&&st.food[d].items)||[];
 function fdTot(d){const t={kcal:0,c:0,f:0,p:0,n:0};for(const i of fdItems(d)){const q=Number(i.qty)||1;t.kcal+=(+i.kcal||0)*q;t.c+=(+i.c||0)*q;t.f+=(+i.f||0)*q;t.p+=(+i.p||0)*q;t.n++}return t}
 const itemK=i=>(+i.kcal||0)*(Number(i.qty)||1);
 function fdTarget(){const p=st.profile||{};const b=bmr(p);const act=ACTS.find(x=>x[0]===p.act);if(!b||!act)return null;
-  const g=GOALS.find(x=>x[0]===(st.settings.foodGoal||"maintain"))||GOALS[2];const tdee=b*act[2];
+  const g=GOALS.find(x=>x[0]===(st.settings.foodGoal||"maintain"))||GOALS.find(x=>x[0]==="maintain");const tdee=b*act[2];
   return{b:Math.round(b),act,tdee:Math.round(tdee),goal:g,kcal:Math.round((tdee+g[2])/10)*10,pLo:Math.round(p.wKg*1.4),pHi:Math.round(p.wKg*2.0)}}
 function defMeal(){const h=new Date().getHours()+new Date().getMinutes()/60;return h<10.5?"breakfast":h<15?"lunch":h<20.5?"dinner":"snack"}
 const mealName=k=>(MEALS.find(m=>m[0]===k)||MEALS[3])[1];
@@ -1866,7 +1866,7 @@ function renderFoodTarget(){
   if(!T){$("fdTarget").innerHTML=`<div class="empty">${!p.wKg||!bmr(p)?"Add your age, sex and weight":"Choose your activity level"} on the <a href="#profile" data-go="profile">Profile</a> tab, and your daily target will appear here.</div>`;return}
   const g=T.goal;
   $("fdTarget").innerHTML=`<div class="stats" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><b>${fmtK(T.b)}</b><span>Burned at rest</span></div><div class="stat"><b>${fmtK(T.tdee)}</b><span>To stay the same weight</span></div><div class="stat"><b>${fmtK(T.kcal)}</b><span>Your target</span></div></div>
-    <p class="muted" style="margin:0;font-size:.82rem;line-height:1.5">Your body burns about ${fmtK(T.b)} calories a day at rest. With your activity level (${esc(T.act[1].split(" (")[0].toLowerCase())}) that comes to about ${fmtK(T.tdee)} a day, which keeps your weight steady. ${g[2]<0?`To lose weight, the target takes off ${-g[2]} calories a day. About 3,500 calories equals 1 lb of fat, so that's roughly ${g[2]===-500?"1 lb":"½ lb"} a week.`:g[2]>0?`To build muscle, the target adds a small surplus of ${g[2]} calories a day, which supports muscle growth while keeping fat gain low.`:"Your target is the same as what you burn."} Your activity level already counts your workouts, so workout calories aren't added on top.</p>
+    <p class="muted" style="margin:0;font-size:.82rem;line-height:1.5">Your body burns about ${fmtK(T.b)} calories a day at rest. With your activity level (${esc(T.act[1].split(" (")[0].toLowerCase())}) that comes to about ${fmtK(T.tdee)} a day, which keeps your weight steady. ${g[2]<0?`To lose weight, the target takes off ${-g[2]} calories a day. About 3,500 calories equals 1 lb of fat, so that's roughly ${({"-1000":"2 lb","-500":"1 lb","-250":"½ lb"})[g[2]]} a week.${g[2]===-1000?" 2 lb a week is the most that's generally advised; going faster tends to cost muscle, so keep protein high and keep lifting.":""}${T.kcal<((st.profile||{}).sex==="female"?1200:1500)?` <b>Your target is below ${(st.profile||{}).sex==="female"?"1,200":"1,500"} calories a day, the usual minimum without medical supervision, so a slower goal would be safer.</b>`:""}`:g[2]>0?`To build muscle, the target adds a small surplus of ${g[2]} calories a day, which supports muscle growth while keeping fat gain low.`:"Your target is the same as what you burn."} Your activity level already counts your workouts, so workout calories aren't added on top.</p>
     <p class="muted" style="margin:0;font-size:.82rem;line-height:1.5">Protein: ${T.pLo}–${T.pHi} g a day (1.4–2.0 g per kg of body weight), the range the International Society of Sports Nutrition recommends for people who train. These are estimates; if your weight doesn't move the way you expect over 2–3 weeks, adjust by 100–200 calories.</p>`;
 }
 function renderFoodList(){
